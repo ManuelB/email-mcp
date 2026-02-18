@@ -8,6 +8,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type ConnectionManager from '../connections/manager.js';
 import type CalendarService from '../services/calendar.service.js';
+import type HooksService from '../services/hooks.service.js';
 import type ImapService from '../services/imap.service.js';
 import type SchedulerService from '../services/scheduler.service.js';
 import type SmtpService from '../services/smtp.service.js';
@@ -44,6 +45,7 @@ export default function registerAllTools(
   calendarService: CalendarService,
   schedulerService: SchedulerService,
   watcherService: WatcherService,
+  hooksService: HooksService,
 ): void {
   const { readOnly } = config.settings;
 
@@ -59,7 +61,7 @@ export default function registerAllTools(
   registerAnalyticsTools(server, imapService);
   registerHealthTools(server, connections, imapService);
   registerLocateTools(server, imapService);
-  registerWatcherTools(server, watcherService, config.settings.hooks);
+  registerWatcherTools(server, watcherService, hooksService);
 
   // Write tools — skipped in read-only mode
   if (!readOnly) {

@@ -92,6 +92,7 @@ async function runServer(): Promise<void> {
     calendarService,
     schedulerService,
     watcherService,
+    hooksService,
   );
   registerAllResources(server, connections, imapService, templateService, schedulerService);
   registerAllPrompts(server);

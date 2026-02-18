@@ -5,7 +5,7 @@
 
 An MCP (Model Context Protocol) server providing comprehensive email capabilities via IMAP and SMTP.
 
-Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 37 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support, email scheduling, calendar extraction, analytics, provider-aware label management, real-time IMAP IDLE watcher with AI-powered triage, customizable presets and static rules, and a guided setup wizard.
+Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 40 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support _(experimental)_, email scheduling, calendar extraction, analytics, provider-aware label management, real-time IMAP IDLE watcher with AI-powered triage, customizable presets and static rules, and a guided setup wizard.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ Enables AI assistants to read, search, send, manage, schedule, and analyze email
 - All connections use TLS/STARTTLS encryption
 - Passwords are never logged; audit trail records operations without credentials
 - Token-bucket rate limiter prevents abuse (configurable per account)
-- OAuth2 XOAUTH2 authentication for Gmail and Microsoft 365
+- OAuth2 XOAUTH2 authentication for Gmail and Microsoft 365 _(experimental)_
 - Attachment downloads capped at 5 MB with base64 encoding
 
 ## Background
@@ -184,7 +184,9 @@ max_connections = 1
 max_messages = 100
 ```
 
-#### OAuth2
+#### OAuth2 _(experimental)_
+
+> **Note:** OAuth2 support is experimental. Token refresh and provider-specific flows may require additional testing in your environment.
 
 ```toml
 [[accounts]]
@@ -332,6 +334,56 @@ webhook_events = ["urgent", "high"]
 
 **Supported platforms:** macOS (Notification Center via `osascript`), Linux (`notify-send`), Windows (PowerShell toast). Zero npm dependencies — uses native OS commands.
 
+**Notification setup by platform:**
+
+<details>
+<summary>macOS</summary>
+
+Desktop notifications use `osascript` (built-in). The terminal app running the MCP server needs notification permission:
+
+1. Open **System Settings → Notifications & Focus**
+2. Find your terminal app (Terminal, iTerm2, VS Code, Cursor, etc.)
+3. Enable **Allow Notifications** and choose **Banners** or **Alerts**
+4. Ensure **Focus** / Do Not Disturb is not blocking notifications
+
+Use `check_notification_setup` to diagnose and `test_notification` to verify.
+</details>
+
+<details>
+<summary>Linux</summary>
+
+Requires `notify-send` from `libnotify`. For sound alerts, `paplay` is also needed:
+
+```bash
+# Ubuntu / Debian
+sudo apt install libnotify-bin pulseaudio-utils
+
+# Fedora
+sudo dnf install libnotify pulseaudio-utils
+
+# Arch
+sudo pacman -S libnotify
+```
+
+Desktop notifications require a running display server (X11/Wayland) — they will not work in headless/SSH sessions.
+</details>
+
+<details>
+<summary>Windows</summary>
+
+Uses PowerShell toast notifications (built-in):
+
+1. Open **Settings → System → Notifications**
+2. Ensure **Notifications** is turned on
+3. Set **Focus Assist** to allow notifications
+4. If using Windows Terminal, ensure its notifications are enabled
+</details>
+
+**AI-configurable:** The AI can check, test, and configure notifications at runtime:
+- `check_notification_setup` — diagnose platform support and show setup instructions
+- `test_notification` — send a test notification to verify everything works
+- `configure_alerts` — enable/disable desktop, sound, threshold, webhook (with optional persist to config file)
+
 **Webhook payload:**
 ```json
 {
@@ -476,20 +528,20 @@ src/
 │   ├── test.ts            — Connection tester
 │   ├── config-commands.ts — Config management (show, edit, path, init)
 │   ├── install-commands.ts — MCP client registration (install, status, remove)
-│   ├── providers.ts       — Provider auto-detection + OAuth2 endpoints
+│   ├── providers.ts       — Provider auto-detection + OAuth2 endpoints (experimental)
 │   └── scheduler.ts       — Scheduler CLI
 ├── config/                — Configuration layer
 │   ├── xdg.ts             — XDG Base Directory paths
 │   ├── schema.ts          — Zod validation schemas
 │   └── loader.ts          — Config loader (TOML + env vars)
 ├── connections/
-│   └── manager.ts         — Lazy persistent IMAP/SMTP with OAuth2
+│   └── manager.ts         — Lazy persistent IMAP/SMTP with OAuth2 (experimental)
 ├── services/              — Business logic
 │   ├── imap.service.ts    — IMAP operations
 │   ├── label-strategy.ts  — Provider-aware label strategy (ProtonMail/Gmail/IMAP keywords)
 │   ├── smtp.service.ts    — SMTP operations
 │   ├── template.service.ts — Email template engine
-│   ├── oauth.service.ts   — OAuth2 token management
+│   ├── oauth.service.ts   — OAuth2 token management (experimental)
 │   ├── calendar.service.ts — ICS/iCalendar parsing
 │   ├── scheduler.service.ts — Email scheduling queue
 │   ├── watcher.service.ts — IMAP IDLE real-time watcher with auto-reconnect
@@ -497,7 +549,7 @@ src/
 │   ├── notifier.service.ts — Multi-channel notification dispatcher (desktop/sound/webhook)
 │   ├── presets.ts         — Built-in hook presets (inbox-zero, gtd, priority-focus, etc.)
 │   └── event-bus.ts       — Typed EventEmitter for internal email events
-├── tools/                 — MCP tool definitions (37)
+├── tools/                 — MCP tool definitions (40)
 ├── prompts/               — MCP prompt definitions (7)
 ├── resources/             — MCP resource definitions (6)
 ├── safety/                — Audit trail and rate limiter

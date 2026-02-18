@@ -30,6 +30,15 @@ export interface AlertPayload {
   ruleName?: string;
 }
 
+export interface PlatformDiagnostics {
+  platform: string;
+  supported: boolean;
+  desktopTool: { name: string; available: boolean };
+  soundTool: { name: string; available: boolean };
+  issues: string[];
+  setupInstructions: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Priority ordering for threshold comparison
 // ---------------------------------------------------------------------------
@@ -86,6 +95,171 @@ export default class NotifierService {
     if (this.desktopResetTimer) {
       clearInterval(this.desktopResetTimer);
       this.desktopResetTimer = null;
+    }
+  }
+
+  /** Returns the current alerts configuration. */
+  getConfig(): AlertsConfig {
+    return { ...this.config };
+  }
+
+  /** Updates alert configuration at runtime (partial merge). */
+  updateConfig(partial: Partial<AlertsConfig>): AlertsConfig {
+    this.config = { ...this.config, ...partial };
+    return this.getConfig();
+  }
+
+  // -------------------------------------------------------------------------
+  // Platform diagnostics — check if notification tools are available
+  // -------------------------------------------------------------------------
+
+  static async checkPlatformSupport(): Promise<PlatformDiagnostics> {
+    const { platform } = process;
+    const issues: string[] = [];
+    const instructions: string[] = [];
+
+    if (platform === 'darwin') {
+      const osascriptOk = await NotifierService.commandExists('osascript');
+      const afplayOk = await NotifierService.commandExists('afplay');
+
+      if (!osascriptOk) issues.push('osascript not found (should be built-in on macOS)');
+
+      instructions.push(
+        '1. Open System Settings → Notifications & Focus',
+        '2. Find your terminal app (Terminal, iTerm2, VS Code, Cursor, etc.)',
+        '3. Enable "Allow Notifications" and choose "Banners" or "Alerts"',
+        '4. Ensure "Do Not Disturb" / Focus mode is not active',
+        '5. If using an MCP client, the notification appears from the terminal running the server',
+      );
+
+      return {
+        platform: 'macOS',
+        supported: osascriptOk,
+        desktopTool: { name: 'osascript', available: osascriptOk },
+        soundTool: { name: 'afplay', available: afplayOk },
+        issues,
+        setupInstructions: instructions,
+      };
+    }
+
+    if (platform === 'linux') {
+      const notifySendOk = await NotifierService.commandExists('notify-send');
+      const paplayOk = await NotifierService.commandExists('paplay');
+
+      if (!notifySendOk) {
+        issues.push('notify-send not found');
+        instructions.push(
+          'Install libnotify:',
+          '  Ubuntu/Debian: sudo apt install libnotify-bin',
+          '  Fedora:        sudo dnf install libnotify',
+          '  Arch:          sudo pacman -S libnotify',
+        );
+      }
+      if (!paplayOk) {
+        issues.push('paplay not found (needed for sound alerts)');
+        instructions.push(
+          'Install PulseAudio utils for sound:',
+          '  Ubuntu/Debian: sudo apt install pulseaudio-utils',
+          '  Fedora:        sudo dnf install pulseaudio-utils',
+        );
+      }
+
+      instructions.push(
+        'Note: Desktop notifications require a running display server (X11/Wayland).',
+        'They will not work in headless/SSH sessions.',
+      );
+
+      return {
+        platform: 'Linux',
+        supported: notifySendOk,
+        desktopTool: { name: 'notify-send', available: notifySendOk },
+        soundTool: { name: 'paplay', available: paplayOk },
+        issues,
+        setupInstructions: instructions,
+      };
+    }
+
+    if (platform === 'win32') {
+      const psOk = await NotifierService.commandExists('powershell');
+
+      if (!psOk) issues.push('PowerShell not found');
+
+      instructions.push(
+        '1. Open Settings → System → Notifications',
+        '2. Ensure "Notifications" is turned on',
+        '3. Ensure "Focus Assist" is set to allow notifications',
+        '4. If using Windows Terminal, ensure its notifications are enabled',
+      );
+
+      return {
+        platform: 'Windows',
+        supported: psOk,
+        desktopTool: { name: 'powershell', available: psOk },
+        soundTool: { name: 'powershell', available: psOk },
+        issues,
+        setupInstructions: instructions,
+      };
+    }
+
+    return {
+      platform,
+      supported: false,
+      desktopTool: { name: 'unknown', available: false },
+      soundTool: { name: 'unknown', available: false },
+      issues: [`Unsupported platform: ${platform}. Desktop notifications are not available.`],
+      setupInstructions: ['Desktop notifications are only supported on macOS, Linux, and Windows.'],
+    };
+  }
+
+  /** Test if a command-line tool exists on the system. */
+  private static async commandExists(cmd: string): Promise<boolean> {
+    const check = process.platform === 'win32' ? `where ${cmd}` : `which ${cmd}`;
+    return new Promise((resolve) => {
+      exec(check, { timeout: 3000 }, (err) => {
+        resolve(!err);
+      });
+    });
+  }
+
+  /** Send a test notification to verify platform setup. */
+  async sendTestNotification(withSound = false): Promise<{ success: boolean; message: string }> {
+    const diag = await NotifierService.checkPlatformSupport();
+    if (!diag.supported) {
+      return {
+        success: false,
+        message: `Desktop notifications not supported: ${diag.issues.join('; ')}`,
+      };
+    }
+
+    // Temporarily force desktop + sound for the test
+    const origDesktop = this.config.desktop;
+    const origSound = this.config.sound;
+    this.config.desktop = true;
+    this.config.sound = withSound;
+
+    try {
+      const testPayload: AlertPayload = {
+        account: 'test',
+        sender: { name: 'Email MCP', address: 'test@email-mcp' },
+        subject: 'If you see this, notifications work!',
+        priority: 'urgent',
+      };
+      await this.sendDesktopNotification(testPayload);
+      return {
+        success: true,
+        message: withSound
+          ? 'Test notification sent with sound. Check your notification center.'
+          : 'Test notification sent. Check your notification center.',
+      };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        message: `Notification failed: ${errMsg}. Check platform setup instructions.`,
+      };
+    } finally {
+      this.config.desktop = origDesktop;
+      this.config.sound = origSound;
     }
   }
 

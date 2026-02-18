@@ -109,6 +109,16 @@ export default class HooksService {
     });
   }
 
+  /** Returns the NotifierService instance for direct tool access. */
+  getNotifier(): NotifierService {
+    return this.notifier;
+  }
+
+  /** Returns the current hooks configuration. */
+  getHooksConfig(): HooksConfig {
+    return this.config;
+  }
+
   /**
    * Start listening for email events.
    * Call after MCP server is connected so we can access the low-level server.
