@@ -26,6 +26,7 @@ import type { RawAccountConfig, RawAppConfig } from '../config/schema.js';
 import { AppConfigFileSchema } from '../config/schema.js';
 import ConnectionManager from '../connections/manager.js';
 import type { AccountConfig } from '../types/index.js';
+import ensureInteractive from './guard.js';
 import { detectProvider } from './providers.js';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,9 @@ interface ServerSettings {
   smtpPort: number;
   smtpTls: boolean;
   smtpStarttls: boolean;
+  smtpPoolEnabled: boolean;
+  smtpPoolMaxConnections: number;
+  smtpPoolMaxMessages: number;
 }
 
 function resolveSmtpSecurityDefault(defaults?: Partial<ServerSettings>): string {
@@ -129,6 +133,52 @@ async function promptServerSettings(defaults?: Partial<ServerSettings>): Promise
   });
   assertNotCancel(smtpSecurity);
 
+  const smtpPoolEnabled = await confirm({
+    message: 'Enable SMTP connection pooling?',
+    initialValue: defaults?.smtpPoolEnabled ?? true,
+  });
+  assertNotCancel(smtpPoolEnabled);
+
+  let smtpPoolMaxConnections = defaults?.smtpPoolMaxConnections ?? 1;
+  let smtpPoolMaxMessages = defaults?.smtpPoolMaxMessages ?? 100;
+
+  if (smtpPoolEnabled) {
+    const maxConnectionsStr = await text({
+      message: 'SMTP pool max connections',
+      defaultValue: String(defaults?.smtpPoolMaxConnections ?? 1),
+      initialValue:
+        defaults?.smtpPoolMaxConnections !== undefined
+          ? String(defaults.smtpPoolMaxConnections)
+          : undefined,
+      validate: (v) => {
+        if (!v) return 'Must be a positive integer';
+        const n = parseInt(v, 10);
+        if (Number.isNaN(n) || n < 1) return 'Must be a positive integer';
+        return undefined;
+      },
+    });
+    assertNotCancel(maxConnectionsStr);
+
+    const maxMessagesStr = await text({
+      message: 'SMTP pool max messages per connection',
+      defaultValue: String(defaults?.smtpPoolMaxMessages ?? 100),
+      initialValue:
+        defaults?.smtpPoolMaxMessages !== undefined
+          ? String(defaults.smtpPoolMaxMessages)
+          : undefined,
+      validate: (v) => {
+        if (!v) return 'Must be a positive integer';
+        const n = parseInt(v, 10);
+        if (Number.isNaN(n) || n < 1) return 'Must be a positive integer';
+        return undefined;
+      },
+    });
+    assertNotCancel(maxMessagesStr);
+
+    smtpPoolMaxConnections = parseInt(maxConnectionsStr || '1', 10);
+    smtpPoolMaxMessages = parseInt(maxMessagesStr || '100', 10);
+  }
+
   return {
     imapHost,
     imapPort: parseInt(imapPortStr || '993', 10),
@@ -137,6 +187,9 @@ async function promptServerSettings(defaults?: Partial<ServerSettings>): Promise
     smtpPort: parseInt(smtpPortStr || '465', 10),
     smtpTls: smtpSecurity === 'tls',
     smtpStarttls: smtpSecurity === 'starttls',
+    smtpPoolEnabled,
+    smtpPoolMaxConnections,
+    smtpPoolMaxMessages,
   };
 }
 
@@ -238,6 +291,9 @@ async function resolveServerSettings(
         smtpPort: provider.smtp.port,
         smtpTls: provider.smtp.tls,
         smtpStarttls: provider.smtp.starttls,
+        smtpPoolEnabled: true,
+        smtpPoolMaxConnections: 1,
+        smtpPoolMaxMessages: 100,
       };
     }
   } else {
@@ -274,6 +330,11 @@ function buildTestAccount(
       tls: server.smtpTls,
       starttls: server.smtpStarttls,
       verifySsl: true,
+      pool: {
+        enabled: server.smtpPoolEnabled,
+        maxConnections: server.smtpPoolMaxConnections,
+        maxMessages: server.smtpPoolMaxMessages,
+      },
     },
   };
 }
@@ -343,6 +404,11 @@ function buildRawAccount(
       tls: server.smtpTls,
       starttls: server.smtpStarttls,
       verify_ssl: true,
+      pool: {
+        enabled: server.smtpPoolEnabled,
+        max_connections: server.smtpPoolMaxConnections,
+        max_messages: server.smtpPoolMaxMessages,
+      },
     },
   };
 }
@@ -388,6 +454,7 @@ async function listAccounts(): Promise<void> {
  * Interactive wizard to add a new email account.
  */
 async function addAccount(): Promise<void> {
+  ensureInteractive();
   intro('email-mcp › Add Account');
 
   let existingConfig: RawAppConfig | undefined;
@@ -461,6 +528,7 @@ async function addAccount(): Promise<void> {
  * Shows a field selector so users can pick exactly what to change.
  */
 async function editAccount(nameArg?: string): Promise<void> {
+  ensureInteractive();
   intro('email-mcp › Edit Account');
 
   const exists = await configExists();
@@ -542,6 +610,9 @@ async function editAccount(nameArg?: string): Promise<void> {
     smtpPort: current.smtp.port,
     smtpTls: current.smtp.tls,
     smtpStarttls: current.smtp.starttls,
+    smtpPoolEnabled: current.smtp.pool?.enabled ?? true,
+    smtpPoolMaxConnections: current.smtp.pool?.max_connections ?? 1,
+    smtpPoolMaxMessages: current.smtp.pool?.max_messages ?? 100,
   };
   let creds = {
     username: current.username ?? current.email,
@@ -609,6 +680,7 @@ async function editAccount(nameArg?: string): Promise<void> {
  * Refuses to delete the last remaining account.
  */
 async function deleteAccount(nameArg?: string): Promise<void> {
+  ensureInteractive();
   intro('email-mcp › Delete Account');
 
   const exists = await configExists();

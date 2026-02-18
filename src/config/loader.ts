@@ -68,6 +68,11 @@ function loadFromEnv(): RawAppConfig | null {
           tls: process.env.MCP_EMAIL_SMTP_TLS !== 'false',
           starttls: process.env.MCP_EMAIL_SMTP_STARTTLS === 'true',
           verify_ssl: process.env.MCP_EMAIL_SMTP_VERIFY_SSL !== 'false',
+          pool: {
+            enabled: process.env.MCP_EMAIL_SMTP_POOL_ENABLED !== 'false',
+            max_connections: parseInt(process.env.MCP_EMAIL_SMTP_POOL_MAX_CONNECTIONS ?? '1', 10),
+            max_messages: parseInt(process.env.MCP_EMAIL_SMTP_POOL_MAX_MESSAGES ?? '100', 10),
+          },
         },
       },
     ],
@@ -125,6 +130,11 @@ function normalizeAccount(raw: RawAccountConfig): AccountConfig {
       tls: raw.smtp.tls,
       starttls: raw.smtp.starttls,
       verifySsl: raw.smtp.verify_ssl,
+      pool: {
+        enabled: raw.smtp.pool.enabled,
+        maxConnections: raw.smtp.pool.max_connections,
+        maxMessages: raw.smtp.pool.max_messages,
+      },
     },
   };
 }

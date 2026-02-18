@@ -35,6 +35,11 @@ export interface SmtpConfig {
   tls: boolean;
   starttls: boolean;
   verifySsl: boolean;
+  pool?: {
+    enabled: boolean;
+    maxConnections: number;
+    maxMessages: number;
+  };
 }
 
 // ---------------------------------------------------------------------------

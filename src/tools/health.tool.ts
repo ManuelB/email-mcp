@@ -67,7 +67,7 @@ export default function registerHealthTools(
           // SMTP health
           try {
             const start = Date.now();
-            await connections.getSmtpTransport(name);
+            await connections.verifySmtpTransport(name);
             const latency = Date.now() - start;
 
             result.smtp = {

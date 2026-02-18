@@ -18,6 +18,17 @@ export const SmtpConfigSchema = z.object({
   tls: z.boolean().default(true),
   starttls: z.boolean().default(false),
   verify_ssl: z.boolean().default(true),
+  pool: z
+    .object({
+      enabled: z.boolean().default(true),
+      max_connections: z.number().int().min(1).default(1),
+      max_messages: z.number().int().min(1).default(100),
+    })
+    .default({
+      enabled: true,
+      max_connections: 1,
+      max_messages: 100,
+    }),
 });
 
 export const OAuth2ConfigSchema = z.object({

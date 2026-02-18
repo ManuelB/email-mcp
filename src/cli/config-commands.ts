@@ -18,6 +18,7 @@ import {
   loadRawConfig,
   saveConfig,
 } from '../config/loader.js';
+import ensureInteractive from './guard.js';
 
 function printConfigUsage(): void {
   console.log(`Usage: email-mcp config <subcommand>
@@ -62,15 +63,16 @@ async function showConfig(): Promise<void> {
     }
     const smtpSecurity = account.smtp.tls ? 'TLS' : 'plain';
     const smtpLabel = account.smtp.starttls ? 'STARTTLS' : smtpSecurity;
-    console.log(
-      `  imap     = ${account.imap.host}:${account.imap.port} (${account.imap.tls ? 'TLS' : 'plain'})`,
-    );
+    const imapSecurity = account.imap.tls ? 'TLS' : 'plain';
+    const imapLabel = account.imap.starttls ? 'STARTTLS' : imapSecurity;
+    console.log(`  imap     = ${account.imap.host}:${account.imap.port} (${imapLabel})`);
     console.log(`  smtp     = ${account.smtp.host}:${account.smtp.port} (${smtpLabel})`);
     console.log(`  password = ${'•'.repeat(8)}\n`);
   });
 }
 
 async function initConfig(): Promise<void> {
+  ensureInteractive();
   intro('email-mcp config init');
 
   const exists = await configExists();
@@ -95,6 +97,7 @@ async function initConfig(): Promise<void> {
 }
 
 async function editSettings(): Promise<void> {
+  ensureInteractive();
   intro('email-mcp › Edit Settings');
 
   const exists = await configExists();

@@ -15,6 +15,10 @@ import { mcpLog } from '../logging.js';
 import type OAuthService from '../services/oauth.service.js';
 import type { AccountConfig } from '../types/index.js';
 
+type SmtpAuth =
+  | { user: string; pass?: string }
+  | { type: string; user: string; accessToken: string };
+
 export default class ConnectionManager {
   private imapClients = new Map<string, ImapFlow>();
 
@@ -105,29 +109,17 @@ export default class ConnectionManager {
   // SMTP
   // -------------------------------------------------------------------------
 
-  async getSmtpTransport(accountName: string): Promise<Transporter> {
-    const existing = this.smtpTransports.get(accountName);
-    if (existing) {
-      try {
-        await existing.verify();
-        return existing;
-      } catch {
-        this.smtpTransports.delete(accountName);
-      }
-    }
+  private static buildSmtpTransportOptions(
+    account: AccountConfig,
+    auth: SmtpAuth,
+  ): nodemailer.TransportOptions {
+    const pool = account.smtp.pool ?? {
+      enabled: true,
+      maxConnections: 1,
+      maxMessages: 100,
+    };
 
-    const account = this.getAccount(accountName);
-
-    // Build auth config based on auth type
-    let auth: { user: string; pass?: string } | { type: string; user: string; accessToken: string };
-    if (account.oauth2 && this.oauthService) {
-      const accessToken = await this.oauthService.getAccessToken(account.oauth2);
-      auth = { type: 'OAuth2', user: account.username, accessToken };
-    } else {
-      auth = { user: account.username, pass: account.password };
-    }
-
-    const transport = nodemailer.createTransport({
+    return {
       host: account.smtp.host,
       port: account.smtp.port,
       secure: account.smtp.tls,
@@ -137,7 +129,53 @@ export default class ConnectionManager {
         rejectUnauthorized: account.smtp.verifySsl,
       },
       auth,
-    } as nodemailer.TransportOptions);
+      pool: pool.enabled,
+      ...(pool.enabled
+        ? {
+            maxConnections: pool.maxConnections,
+            maxMessages: pool.maxMessages,
+          }
+        : {}),
+    } as nodemailer.TransportOptions;
+  }
+
+  async getSmtpTransport(
+    accountName: string,
+    options?: { verify?: boolean },
+  ): Promise<Transporter> {
+    const verify = options?.verify ?? false;
+    const existing = this.smtpTransports.get(accountName);
+    if (existing) {
+      if (!verify) {
+        return existing;
+      }
+      try {
+        await existing.verify();
+        return existing;
+      } catch {
+        this.smtpTransports.delete(accountName);
+        try {
+          existing.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    const account = this.getAccount(accountName);
+
+    // Build auth config based on auth type
+    let auth: SmtpAuth;
+    if (account.oauth2 && this.oauthService) {
+      const accessToken = await this.oauthService.getAccessToken(account.oauth2);
+      auth = { type: 'OAuth2', user: account.username, accessToken };
+    } else {
+      auth = { user: account.username, pass: account.password };
+    }
+
+    const transport = nodemailer.createTransport(
+      ConnectionManager.buildSmtpTransportOptions(account, auth),
+    );
 
     await transport.verify();
     await mcpLog(
@@ -147,6 +185,10 @@ export default class ConnectionManager {
     );
     this.smtpTransports.set(accountName, transport);
     return transport;
+  }
+
+  async verifySmtpTransport(accountName: string): Promise<void> {
+    await this.getSmtpTransport(accountName, { verify: true });
   }
 
   // -------------------------------------------------------------------------
@@ -232,10 +274,9 @@ export default class ConnectionManager {
     account: AccountConfig,
     oauthService?: OAuthService,
   ): Promise<{ success: boolean; error?: string }> {
+    let transport: Transporter | undefined;
     try {
-      let auth:
-        | { user: string; pass?: string }
-        | { type: string; user: string; accessToken: string };
+      let auth: SmtpAuth;
       if (account.oauth2 && oauthService) {
         const accessToken = await oauthService.getAccessToken(account.oauth2);
         auth = { type: 'OAuth2', user: account.username, accessToken };
@@ -243,23 +284,18 @@ export default class ConnectionManager {
         auth = { user: account.username, pass: account.password };
       }
 
-      const transport = nodemailer.createTransport({
-        host: account.smtp.host,
-        port: account.smtp.port,
-        secure: account.smtp.tls,
-        requireTLS: account.smtp.starttls,
-        ignoreTLS: !account.smtp.tls && !account.smtp.starttls,
-        tls: { rejectUnauthorized: account.smtp.verifySsl },
-        auth,
-      } as nodemailer.TransportOptions);
+      transport = nodemailer.createTransport(
+        ConnectionManager.buildSmtpTransportOptions(account, auth),
+      );
       await transport.verify();
-      transport.close();
       return { success: true };
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : String(err),
       };
+    } finally {
+      transport?.close();
     }
   }
 
