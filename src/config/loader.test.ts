@@ -193,7 +193,7 @@ read_only = true
         ],
       };
 
-      await saveConfig(rawConfig as any, configPath);
+      await saveConfig(rawConfig as unknown as Parameters<typeof saveConfig>[0], configPath);
 
       const reloaded = await loadConfig(configPath);
       expect(reloaded.accounts[0].name).toBe('saved-test');

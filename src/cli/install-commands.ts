@@ -373,7 +373,7 @@ async function runStatus(): Promise<void> {
   );
 
   const anyFound = lines.some((l) => !l.includes('config not found'));
-  lines.forEach((line) => console.log(line));
+  for (const line of lines) console.log(line); // eslint-disable-line no-restricted-syntax
 
   if (!anyFound) {
     console.log('\n  No supported MCP clients detected.');

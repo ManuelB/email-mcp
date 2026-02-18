@@ -7,6 +7,7 @@ import { z } from 'zod';
 import audit from '../safety/audit.js';
 
 import type ImapService from '../services/imap.service.js';
+import type { BulkResult } from '../types/index.js';
 
 export default function registerBulkTools(server: McpServer, imapService: ImapService): void {
   server.tool(
@@ -43,7 +44,7 @@ export default function registerBulkTools(server: McpServer, imapService: ImapSe
           };
         }
 
-        let result;
+        let result: BulkResult;
         if (action === 'move') {
           result = await imapService.bulkMove(account, ids, mailbox, destination as string);
         } else if (action === 'delete') {

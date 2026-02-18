@@ -50,7 +50,7 @@ async function runCheck(): Promise<void> {
   }
   if (result.failed > 0) {
     console.log(`❌ Failed: ${result.failed}`);
-    result.errors.forEach((err) => console.log(`   ${err}`));
+    for (const err of result.errors) console.log(`   ${err}`); // eslint-disable-line no-restricted-syntax
   }
   if (result.sent === 0 && result.failed === 0) {
     console.log('No overdue scheduled emails.');

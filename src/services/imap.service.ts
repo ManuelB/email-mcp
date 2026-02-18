@@ -692,6 +692,7 @@ export default class ImapService {
     const srcLock = await client.getMailboxLock(sourceMailbox);
     try {
       const msg = await client.fetchOne(emailId, { headers: true }, { uid: true });
+      // biome-ignore lint/complexity/useOptionalChain: optional chain breaks TS type narrowing for union with false
       if (msg && msg.headers && Buffer.isBuffer(msg.headers)) {
         const headerText = msg.headers.toString('utf-8');
         const match = /^message-id:\s*(.+)$/im.exec(headerText);
@@ -1302,7 +1303,9 @@ export default class ImapService {
               refMatch[1]
                 .split(/\s+/)
                 .filter(Boolean)
-                .forEach((ref) => targetMsgIds.add(ref));
+                .forEach((ref) => {
+                  targetMsgIds.add(ref);
+                });
             }
           }
         }
@@ -1321,7 +1324,9 @@ export default class ImapService {
             { uid: true },
           );
           if (Array.isArray(searchResult)) {
-            searchResult.forEach((uid) => foundUids.add(uid));
+            searchResult.forEach((uid) => {
+              foundUids.add(uid);
+            });
           }
         } catch {
           // Header search may not be supported for all messages
@@ -1337,7 +1342,9 @@ export default class ImapService {
           // eslint-disable-next-line no-await-in-loop
           const refSearch = await client.search({ header: { References: msgId } }, { uid: true });
           if (Array.isArray(refSearch)) {
-            refSearch.forEach((uid) => foundUids.add(uid));
+            refSearch.forEach((uid) => {
+              foundUids.add(uid);
+            });
           }
           // eslint-disable-next-line no-await-in-loop
           const replySearch = await client.search(
@@ -1345,7 +1352,9 @@ export default class ImapService {
             { uid: true },
           );
           if (Array.isArray(replySearch)) {
-            replySearch.forEach((uid) => foundUids.add(uid));
+            replySearch.forEach((uid) => {
+              foundUids.add(uid);
+            });
           }
         } catch {
           // Header search may fail on some servers

@@ -69,18 +69,18 @@ describe('registerAllTools', () => {
 
   it('registers all tools when readOnly is false', () => {
     registerAllTools(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       createConfig(false),
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
     // Read tools should always be registered
     expect(registerAccountsTools).toHaveBeenCalled();
@@ -98,18 +98,18 @@ describe('registerAllTools', () => {
 
   it('skips write tools when readOnly is true', () => {
     registerAllTools(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       createConfig(true),
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
     // Read tools should still be registered
     expect(registerAccountsTools).toHaveBeenCalled();

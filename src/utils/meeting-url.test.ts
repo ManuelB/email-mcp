@@ -5,16 +5,16 @@ describe('extractMeetingUrl', () => {
     const text = 'Join: https://us04web.zoom.us/j/123456?pwd=abc';
     const result = extractMeetingUrl(text);
     expect(result).toBeDefined();
-    expect(result!.url).toBe('https://us04web.zoom.us/j/123456?pwd=abc');
-    expect(result!.label).toBe('Zoom');
+    expect(result?.url).toBe('https://us04web.zoom.us/j/123456?pwd=abc');
+    expect(result?.label).toBe('Zoom');
   });
 
   it('extracts Google Meet URL', () => {
     const text = 'Meeting at https://meet.google.com/abc-defg-hij';
     const result = extractMeetingUrl(text);
     expect(result).toBeDefined();
-    expect(result!.url).toBe('https://meet.google.com/abc-defg-hij');
-    expect(result!.label).toBe('Google Meet');
+    expect(result?.url).toBe('https://meet.google.com/abc-defg-hij');
+    expect(result?.label).toBe('Google Meet');
   });
 
   it('extracts Teams URL', () => {
@@ -22,16 +22,16 @@ describe('extractMeetingUrl', () => {
       'Join here: https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0?context=%7b%7d';
     const result = extractMeetingUrl(text);
     expect(result).toBeDefined();
-    expect(result!.url).toContain('teams.microsoft.com/l/meetup-join');
-    expect(result!.label).toBe('Microsoft Teams');
+    expect(result?.url).toContain('teams.microsoft.com/l/meetup-join');
+    expect(result?.label).toBe('Microsoft Teams');
   });
 
   it('extracts Webex URL', () => {
     const text = 'Webex link: https://example.webex.com/meet/user';
     const result = extractMeetingUrl(text);
     expect(result).toBeDefined();
-    expect(result!.url).toBe('https://example.webex.com/meet/user');
-    expect(result!.label).toBe('Webex');
+    expect(result?.url).toBe('https://example.webex.com/meet/user');
+    expect(result?.label).toBe('Webex');
   });
 
   it('returns undefined for text with no meeting URL', () => {
@@ -46,6 +46,6 @@ describe('extractMeetingUrl', () => {
     const text = 'Click here: https://meet.google.com/abc-defg-hij).';
     const result = extractMeetingUrl(text);
     expect(result).toBeDefined();
-    expect(result!.url).toBe('https://meet.google.com/abc-defg-hij');
+    expect(result?.url).toBe('https://meet.google.com/abc-defg-hij');
   });
 });

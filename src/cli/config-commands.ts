@@ -43,7 +43,7 @@ async function showConfig(): Promise<void> {
     throw new Error('Config file not found');
   }
 
-  let config;
+  let config: Awaited<ReturnType<typeof loadConfig>>;
   try {
     config = await loadConfig();
   } catch (err) {

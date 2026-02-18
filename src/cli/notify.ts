@@ -41,12 +41,12 @@ async function runStatus(): Promise<void> {
 
   if (diag.issues.length > 0) {
     log.warn('Issues detected:');
-    diag.issues.forEach((issue) => log.message(`  ⚠ ${issue}`));
+    for (const issue of diag.issues) log.message(`  ⚠ ${issue}`); // eslint-disable-line no-restricted-syntax
   }
 
   if (diag.setupInstructions.length > 0) {
     log.info('Setup instructions:');
-    diag.setupInstructions.forEach((instruction) => log.message(`  ${instruction}`));
+    for (const instruction of diag.setupInstructions) log.message(`  ${instruction}`); // eslint-disable-line no-restricted-syntax
   }
 
   outro(diag.supported ? 'Notifications supported ✅' : 'Notifications not fully supported ❌');
@@ -82,7 +82,7 @@ async function runTest(): Promise<void> {
     log.error(`Desktop notifications are not supported: ${diag.issues.join('; ')}`);
     if (diag.setupInstructions.length > 0) {
       log.info('Setup instructions:');
-      diag.setupInstructions.forEach((instruction) => log.message(`  ${instruction}`));
+      for (const instruction of diag.setupInstructions) log.message(`  ${instruction}`); // eslint-disable-line no-restricted-syntax
     }
     outro('Fix the issues above and try again ❌');
     return;
@@ -125,7 +125,7 @@ async function runTest(): Promise<void> {
       } else {
         log.warn('The notification was sent but you did not see it.');
         log.info('Troubleshooting tips:');
-        diag.setupInstructions.forEach((instruction) => log.message(`  ${instruction}`));
+        for (const instruction of diag.setupInstructions) log.message(`  ${instruction}`); // eslint-disable-line no-restricted-syntax
         outro('Check your notification settings and try again ⚠️');
       }
     } else {
@@ -133,7 +133,7 @@ async function runTest(): Promise<void> {
       log.error(result.message);
       if (diag.setupInstructions.length > 0) {
         log.info('Setup instructions:');
-        diag.setupInstructions.forEach((instruction) => log.message(`  ${instruction}`));
+        for (const instruction of diag.setupInstructions) log.message(`  ${instruction}`); // eslint-disable-line no-restricted-syntax
       }
       outro('Fix the issues above and try again ❌');
     }

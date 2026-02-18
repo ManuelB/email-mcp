@@ -24,8 +24,8 @@ export function sanitizeMailboxName(name: string): string {
  * @returns The sanitized query string.
  */
 export function sanitizeSearchQuery(query: string): string {
-  // eslint-disable-next-line no-control-regex
-  const cleaned = query.replace(/[\x00-\x08\x0B-\x1F]/g, '').trim();
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — sanitize control chars from user input
+  const cleaned = query.replace(/[\x00-\x08\x0B-\x1F]/g, '').trim(); // eslint-disable-line no-control-regex
   if (cleaned.length === 0) {
     throw new Error('Search query must not be empty after sanitization');
   }
@@ -99,10 +99,12 @@ export function validateLabelName(name: string): string {
   if (trimmed.length > 200) {
     throw new Error('Label name must not exceed 200 characters');
   }
-  // eslint-disable-next-line no-control-regex
+  /* eslint-disable no-control-regex */
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — reject control chars in label names
   if (/[\x00-\x1F]/.test(trimmed)) {
     throw new Error('Label name must not contain control characters');
   }
+  /* eslint-enable no-control-regex */
   return trimmed;
 }
 

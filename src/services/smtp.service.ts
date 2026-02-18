@@ -78,11 +78,15 @@ export default class SmtpService {
       // Add all original To recipients except ourselves
       original.to
         .filter((addr) => addr.address !== account.email)
-        .forEach((addr) => to.push(addr.address));
+        .forEach((addr) => {
+          to.push(addr.address);
+        });
       // Add CC recipients except ourselves
       (original.cc ?? [])
         .filter((addr) => addr.address !== account.email)
-        .forEach((addr) => cc.push(addr.address));
+        .forEach((addr) => {
+          cc.push(addr.address);
+        });
     }
 
     // Build threading headers
