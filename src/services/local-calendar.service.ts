@@ -1,7 +1,7 @@
 /**
  * Local calendar integration service.
  *
- * macOS: uses `osascript -l JavaScript` (JXA — JavaScript for Automation)
+ * macOS: uses `osascript` (AppleScript) for calendar operations
  *   - Triggers the native OS permission dialog automatically on first use
  *   - Shows a native confirmation dialog before adding any event
  *
@@ -99,121 +99,126 @@ interface JXAScriptOptions {
   confirm: boolean;
 }
 
-function buildJXAScript(opts: JXAScriptOptions): string {
+function escapeAS(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function buildAppleScript(opts: JXAScriptOptions): string {
   const { event, calendarName, alarmMinutes, attachCount, attendeeCount, confirm } = opts;
 
-  const t = {
-    title: JSON.stringify(event.title),
-    start: JSON.stringify(event.start.toISOString()),
-    end: JSON.stringify(event.end.toISOString()),
-    location: JSON.stringify(event.location ?? ''),
-    notes: JSON.stringify(event.notes ?? ''),
-    url: JSON.stringify(event.url ?? ''),
-    urlLabel: JSON.stringify(event.urlLabel ?? event.conferenceProvider ?? ''),
-    calName: JSON.stringify(calendarName),
-    dialIn: JSON.stringify(event.dialIn ?? ''),
-    meetingId: JSON.stringify(event.meetingId ?? ''),
-    passcode: JSON.stringify(event.passcode ?? ''),
-    alarmMins: String(alarmMinutes),
-    attachCount: String(attachCount),
-    attendeeCount: String(attendeeCount),
-    confirm: confirm ? 'true' : 'false',
-  };
+  const title = escapeAS(event.title);
+  const location = escapeAS(event.location ?? '');
+  const notes = escapeAS(event.notes ?? '');
+  const url = escapeAS(event.url ?? '');
+  const urlLabel = escapeAS(event.urlLabel ?? event.conferenceProvider ?? '');
+  const dialIn = escapeAS(event.dialIn ?? '');
+  const meetingId = escapeAS(event.meetingId ?? '');
+  const passcode = escapeAS(event.passcode ?? '');
+  const calName = escapeAS(calendarName);
 
-  return `(() => {
-  const title       = ${t.title};
-  const startDate   = new Date(${t.start});
-  const endDate     = new Date(${t.end});
-  const location    = ${t.location};
-  const notes       = ${t.notes};
-  const url         = ${t.url};
-  const urlLabel    = ${t.urlLabel};
-  const calName     = ${t.calName};
-  const dialIn      = ${t.dialIn};
-  const meetingId   = ${t.meetingId};
-  const passcode    = ${t.passcode};
-  const alarmMins   = ${t.alarmMins};
-  const attachCount = ${t.attachCount};
-  const attendees   = ${t.attendeeCount};
-  const doConfirm   = ${t.confirm};
+  const startISO = event.start.toISOString().replace(/\.\d+Z$/, '');
+  const endISO = event.end.toISOString().replace(/\.\d+Z$/, '');
 
-  const app = Application.currentApplication();
-  app.includeStandardAdditions = true;
-  const Calendar = Application('Calendar');
+  const lines: string[] = [
+    `set eventTitle to "${title}"`,
+    'set eventStart to current date',
+    'set eventEnd to current date',
+    '',
+    `set eventStart to do shell script "date -j -f '%Y-%m-%dT%H:%M:%S' '${startISO}' '+%s'"`,
+    'set eventStart to (eventStart as number) as date',
+    `set eventEnd to do shell script "date -j -f '%Y-%m-%dT%H:%M:%S' '${endISO}' '+%s'"`,
+    'set eventEnd to (eventEnd as number) as date',
+    '',
+  ];
 
-  if (doConfirm) {
-    const fmt = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    const startStr = startDate.toLocaleString('en', fmt);
-    const endStr   = endDate.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
-    const lines = [
-      '\\uD83D\\uDCC5 ' + title,
-      '\\uD83D\\uDD50 ' + startStr + ' \u2013 ' + endStr,
-    ];
-    if (location)    lines.push('\\uD83D\\uDCCD ' + location);
+  if (confirm) {
+    const dialogLines: string[] = [`\uD83D\uDCC5 ${title}`];
+    dialogLines.push('\uD83D\uDD50 " & (eventStart as text) & " \u2013 " & (eventEnd as text) & "');
+    if (location) {
+      dialogLines.push(`\uD83D\uDCCD ${location}`);
+    }
     if (url) {
-      const domain = url.replace(/^https?:\\/\\//, '').split('/')[0];
-      lines.push('\\uD83C\\uDFA5 ' + (urlLabel || domain));
+      const domain = url.replace(/^https?:\/\//, '').split('/')[0];
+      dialogLines.push(`\uD83C\uDFA5 ${urlLabel || domain}`);
     }
-    if (dialIn)    lines.push('\\uD83D\\uDCDE ' + dialIn);
-    if (meetingId) lines.push('\\uD83D\\uDD11 ID: ' + meetingId + (passcode ? ' \\u00B7 PIN: ' + passcode : ''));
-    if (attendees > 0) lines.push('\\uD83D\\uDC65 ' + attendees + ' attendee' + (attendees > 1 ? 's' : ''));
-    if (attachCount > 0) lines.push('\\uD83D\\uDCCE ' + attachCount + ' attachment' + (attachCount > 1 ? 's' : '') + ' will be saved locally');
-    lines.push('\\uD83D\\uDCC6 ' + (calName || 'Default Calendar') + ' \\u00B7 \\u23F0 ' + alarmMins + ' min before');
-
-    let dlg;
-    try {
-      dlg = app.displayDialog(lines.join('\\n'), {
-        withTitle: 'email-mcp \u2014 Add Calendar Event?',
-        buttons: ['Cancel', 'Add to Calendar'],
-        defaultButton: 'Add to Calendar',
-        cancelButton: 'Cancel',
-        givingUpAfter: 60,
-      });
-    } catch(e) {
-      return JSON.stringify({ status: 'cancelled' });
+    if (dialIn) {
+      dialogLines.push(`\uD83D\uDCDE ${dialIn}`);
     }
-    if (dlg.gaveUp) return JSON.stringify({ status: 'timed_out' });
-    if (dlg.buttonReturned !== 'Add to Calendar') return JSON.stringify({ status: 'cancelled' });
+    if (meetingId) {
+      const pin = passcode ? ` \u00B7 PIN: ${passcode}` : '';
+      dialogLines.push(`\uD83D\uDD11 ID: ${meetingId}${pin}`);
+    }
+    if (attendeeCount > 0) {
+      dialogLines.push(`\uD83D\uDC65 ${attendeeCount} attendee${attendeeCount > 1 ? 's' : ''}`);
+    }
+    if (attachCount > 0) {
+      dialogLines.push(
+        `\uD83D\uDCCE ${attachCount} attachment${attachCount > 1 ? 's' : ''} saved locally`,
+      );
+    }
+    dialogLines.push(
+      `\uD83D\uDCC6 ${calName || 'Default Calendar'} \u00B7 \u23F0 ${alarmMinutes} min before`,
+    );
+
+    lines.push(`set dialogText to "${escapeAS(dialogLines[0])}"`);
+    dialogLines.slice(1).forEach((dl) => {
+      lines.push(`set dialogText to dialogText & return & "${escapeAS(dl)}"`);
+    });
+    lines.push(
+      'try',
+      '  display dialog dialogText with title "email-mcp \u2014 Add Calendar Event?" buttons {"Cancel", "Add to Calendar"} default button "Add to Calendar" cancel button "Cancel" giving up after 60',
+      '  set dlgResult to button returned of result',
+      '  if dlgResult is not "Add to Calendar" then',
+      '    return "{\\"status\\":\\"timed_out\\"}"',
+      '  end if',
+      'on error',
+      '  return "{\\"status\\":\\"cancelled\\"}"',
+      'end try',
+      '',
+    );
   }
 
-  let targetCal;
-  try {
-    targetCal = calName
-      ? Calendar.calendars.whose({ name: calName })[0]
-      : Calendar.defaultCalendar;
-  } catch(e) {
-    targetCal = Calendar.defaultCalendar;
+  lines.push('tell application "Calendar"');
+  if (calName) {
+    lines.push(
+      '  try',
+      `    set theCal to first calendar whose name is "${calName}"`,
+      '  on error',
+      '    set theCal to first calendar',
+      '  end try',
+    );
+  } else {
+    lines.push('  set theCal to first calendar');
   }
-  if (!targetCal) {
-    return JSON.stringify({ status: 'no_display', error: 'Calendar not found: ' + calName });
+  lines.push('  set eventProps to {summary:eventTitle, start date:eventStart, end date:eventEnd}');
+  if (location) {
+    lines.push(`  set eventProps to eventProps & {location:"${location}"}`);
   }
-
-  const props = {
-    summary:   title,
-    startDate: startDate,
-    endDate:   endDate,
-  };
-  if (location) props.location    = location;
-  if (notes)    props.description = notes;
-  if (url)      props.url         = url;
-
-  const ev = Calendar.Event(props);
-  targetCal.events.push(ev);
-
-  if (alarmMins > 0) {
-    try {
-      const alarm = Calendar.DisplayAlarm({ triggerInterval: -alarmMins * 60 });
-      ev.alarms.push(alarm);
-    } catch(e) { /* alarms not supported on this calendar type */ }
+  if (notes) {
+    lines.push(`  set eventProps to eventProps & {description:"${notes}"}`);
   }
+  if (url) {
+    lines.push(`  set eventProps to eventProps & {url:"${escapeAS(event.url ?? '')}"}`);
+  }
+  lines.push(
+    '  set theEvent to make new event at end of events of theCal with properties eventProps',
+  );
+  if (alarmMinutes > 0) {
+    lines.push(
+      '  try',
+      `    make new display alarm at end of display alarms of theEvent with properties {trigger interval:-${alarmMinutes * 60}}`,
+      '  end try',
+    );
+  }
+  lines.push(
+    '  set eventId to uid of theEvent',
+    '  set finalCalName to name of theCal',
+    'end tell',
+    '',
+    'return "{\\"status\\":\\"added\\",\\"eventId\\":\\"" & eventId & "\\",\\"calendarName\\":\\"" & finalCalName & "\\"}"',
+  );
 
-  let eventId = '';
-  try { eventId = ev.uid(); } catch(e) {}
-  let finalCalName = '';
-  try { finalCalName = targetCal.name(); } catch(e) {}
-
-  return JSON.stringify({ status: 'added', eventId: eventId, calendarName: finalCalName });
-})()`;
+  return lines.join('\n');
 }
 
 function toICSDate(d: Date): string {
@@ -273,20 +278,13 @@ function statusMessage(status: AddEventStatus, title: string, calName: string | 
 }
 
 async function checkPermissionsMacOS(): Promise<PermissionResult> {
-  const script = `(() => {
-    try {
-      const cal = Application('Calendar');
-      return JSON.stringify({ granted: true, count: cal.calendars().length });
-    } catch(e) {
-      return JSON.stringify({ granted: false, error: String(e) });
-    }
-  })()`;
+  const script = 'tell application "Calendar" to return count of calendars';
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 10_000,
     });
-    const parsed = JSON.parse(stdout.trim()) as { granted: boolean };
-    if (parsed.granted) return { granted: true, platform: 'darwin', instructions: [] };
+    const count = parseInt(stdout.trim(), 10);
+    if (count >= 0) return { granted: true, platform: 'darwin', instructions: [] };
   } catch {
     // fall through to denied
   }
@@ -304,23 +302,14 @@ async function checkPermissionsMacOS(): Promise<PermissionResult> {
 }
 
 async function listCalendarsMacOS(): Promise<CalendarInfo[]> {
-  const script = `(() => {
-    try {
-      const cal = Application('Calendar');
-      return JSON.stringify(
-        cal.calendars().map(c => {
-          try { return { id: c.uid(), name: c.name() }; } catch(e) { return null; }
-        }).filter(Boolean)
-      );
-    } catch(e) {
-      return JSON.stringify([]);
-    }
-  })()`;
+  const script = 'tell application "Calendar" to return name of every calendar';
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 10_000,
     });
-    return JSON.parse(stdout.trim()) as CalendarInfo[];
+    const raw = stdout.trim();
+    if (!raw) return [];
+    return raw.split(', ').map((name) => ({ id: name, name }));
   } catch {
     return [];
   }
@@ -328,67 +317,32 @@ async function listCalendarsMacOS(): Promise<CalendarInfo[]> {
 
 async function findExistingEventMacOS(
   title: string,
-  start: Date,
-  icsUid?: string,
+  _start: Date,
+  _icsUid?: string,
 ): Promise<ExistingEventResult> {
-  const toleranceMs = 2 * 60 * 1000; // ±2 minutes
-  const windowStart = new Date(start.getTime() - toleranceMs).toISOString();
-  const windowEnd = new Date(start.getTime() + toleranceMs).toISOString();
+  const searchTitle = escapeAS(title);
 
-  const t = {
-    title: JSON.stringify(title),
-    windowStart: JSON.stringify(windowStart),
-    windowEnd: JSON.stringify(windowEnd),
-    icsUid: JSON.stringify(icsUid ?? ''),
-  };
-
-  const script = `(() => {
-  try {
-    const Calendar = Application('Calendar');
-    const icsUid = ${t.icsUid};
-    const title  = ${t.title};
-    const wStart = new Date(${t.windowStart});
-    const wEnd   = new Date(${t.windowEnd});
-
-    for (const cal of Calendar.calendars()) {
-      let calName = '';
-      try { calName = cal.name(); } catch(e) {}
-
-      // UID-based match (most reliable)
-      if (icsUid) {
-        try {
-          const byUid = cal.events.whose({ uid: icsUid });
-          if (byUid.length > 0) {
-            let eid = ''; try { eid = byUid[0].uid(); } catch(e) {}
-            let sd = ''; try { sd = byUid[0].startDate().toISOString(); } catch(e) {}
-            return JSON.stringify({ found: true, eventId: eid, calendarName: calName, start: sd });
-          }
-        } catch(e) {}
-      }
-
-      // Title + start date match
-      try {
-        const bySummary = cal.events.whose({ summary: title });
-        for (const ev of bySummary) {
-          try {
-            const evStart = ev.startDate();
-            if (evStart >= wStart && evStart <= wEnd) {
-              let eid = ''; try { eid = ev.uid(); } catch(e2) {}
-              return JSON.stringify({ found: true, eventId: eid, calendarName: calName, start: evStart.toISOString() });
-            }
-          } catch(e2) {}
-        }
-      } catch(e) {}
-    }
-    return JSON.stringify({ found: false });
-  } catch(e) {
-    return JSON.stringify({ found: false });
-  }
-})()`;
+  const script = `
+set searchTitle to "${searchTitle}"
+tell application "Calendar"
+  repeat with c in calendars
+    try
+      set evList to (every event of c whose summary is searchTitle)
+      if (count of evList) > 0 then
+        set theEvent to item 1 of evList
+        set eventId to uid of theEvent
+        set calName to name of c
+        return "{\\"found\\":true,\\"eventId\\":\\"" & eventId & "\\",\\"calendarName\\":\\"" & calName & "\\"}"
+      end if
+    end try
+  end repeat
+end tell
+return "{\\"found\\":false}"
+`;
 
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
-      timeout: 15_000,
+    const { stdout } = await execFile('osascript', ['-e', script], {
+      timeout: 10_000,
     });
     return JSON.parse(stdout.trim()) as ExistingEventResult;
   } catch {
@@ -406,7 +360,7 @@ async function addEventMacOS(
     (event.savedAttachments?.length ?? 0) + (event.pendingAttachments?.length ?? 0);
   const attendeeCount = event.attendeeCount ?? 0;
 
-  const script = buildJXAScript({
+  const script = buildAppleScript({
     event,
     calendarName: calendarName ?? '',
     alarmMinutes,
@@ -416,7 +370,7 @@ async function addEventMacOS(
   });
 
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 90_000,
     });
     const result = JSON.parse(stdout.trim()) as {

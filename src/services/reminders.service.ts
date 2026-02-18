@@ -1,5 +1,5 @@
 /**
- * macOS Reminders.app integration via JXA (JavaScript for Automation).
+ * macOS Reminders.app integration via AppleScript.
  *
  * Lets the AI create reminders from email content — action items, deadlines,
  * follow-ups, etc. — with a native confirmation dialog before adding.
@@ -43,7 +43,7 @@ export interface ReminderListInfo {
 }
 
 // ---------------------------------------------------------------------------
-// JXA priority mapping: none=0, low=9, medium=5, high=1
+// AppleScript priority mapping: none=0, low=9, medium=5, high=1
 // ---------------------------------------------------------------------------
 
 const PRIORITY_MAP: Record<ReminderPriority, number> = {
@@ -77,135 +77,139 @@ function reminderStatusMessage(
 }
 
 async function checkPermissionsMacOS(): Promise<boolean> {
-  const script = `(() => {
-    try {
-      const r = Application('Reminders');
-      return JSON.stringify({ granted: true, count: r.lists().length });
-    } catch(e) {
-      return JSON.stringify({ granted: false });
-    }
-  })()`;
+  const script = 'tell application "Reminders" to return count of lists';
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 10_000,
     });
-    const parsed = JSON.parse(stdout.trim()) as { granted: boolean };
-    return parsed.granted;
+    return parseInt(stdout.trim(), 10) >= 0;
   } catch {
     return false;
   }
 }
 
 async function listListsMacOS(): Promise<ReminderListInfo[]> {
-  const script = `(() => {
-    try {
-      const r = Application('Reminders');
-      return JSON.stringify(r.lists().map(l => {
-        try { return { id: l.id(), name: l.name() }; } catch(e) { return null; }
-      }).filter(Boolean));
-    } catch(e) {
-      return JSON.stringify([]);
-    }
-  })()`;
+  const script = 'tell application "Reminders" to return name of every list';
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 10_000,
     });
-    return JSON.parse(stdout.trim()) as ReminderListInfo[];
+    const raw = stdout.trim();
+    if (!raw) return [];
+    return raw.split(', ').map((name) => ({ id: name, name }));
   } catch {
     return [];
   }
 }
 
-function buildReminderJXAScript(input: ReminderInput, confirm: boolean): string {
+function escapeAS(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function buildReminderAppleScript(input: ReminderInput, confirm: boolean): string {
   const priority = PRIORITY_MAP[input.priority ?? 'none'];
+  const title = escapeAS(input.title);
+  const notes = escapeAS(input.notes ?? '');
+  const dueDate = input.dueDate ?? '';
+  const listName = escapeAS(input.listName ?? '');
 
-  const t = {
-    title: JSON.stringify(input.title),
-    notes: JSON.stringify(input.notes ?? ''),
-    dueDate: JSON.stringify(input.dueDate ?? ''),
-    listName: JSON.stringify(input.listName ?? ''),
-    priority: String(priority),
-    confirm: confirm ? 'true' : 'false',
-  };
+  const lines: string[] = [];
 
-  return `(() => {
-  const title    = ${t.title};
-  const notes    = ${t.notes};
-  const dueStr   = ${t.dueDate};
-  const listName = ${t.listName};
-  const priority = ${t.priority};
-  const doConfirm = ${t.confirm};
-
-  const app = Application.currentApplication();
-  app.includeStandardAdditions = true;
-  const Reminders = Application('Reminders');
-
-  if (doConfirm) {
-    const lines = ['\uD83D\uDD14 ' + title];
-    if (dueStr)   lines.push('\uD83D\uDD50 Due: ' + new Date(dueStr).toLocaleString('en'));
-    if (notes)    lines.push('\uD83D\uDCDD ' + notes.substring(0, 200) + (notes.length > 200 ? '\u2026' : ''));
-    if (listName) lines.push('\uD83D\uDCCB List: ' + listName);
+  if (confirm) {
+    const dlgParts: string[] = [`\uD83D\uDD14 ${title}`];
+    if (dueDate) {
+      dlgParts.push(`\uD83D\uDD50 Due: ${dueDate}`);
+    }
+    if (notes) {
+      const short = notes.length > 200 ? `${notes.substring(0, 200)}\u2026` : notes;
+      dlgParts.push(`\uD83D\uDCDD ${short}`);
+    }
+    if (listName) {
+      dlgParts.push(`\uD83D\uDCCB List: ${listName}`);
+    }
     if (priority > 0) {
-      const pLabel = priority <= 2 ? 'High' : (priority <= 6 ? 'Medium' : 'Low');
-      lines.push('\u26A0\uFE0F Priority: ' + pLabel);
+      let pLabel = 'Low';
+      if (priority <= 2) {
+        pLabel = 'High';
+      } else if (priority <= 6) {
+        pLabel = 'Medium';
+      }
+      dlgParts.push(`\u26A0\uFE0F Priority: ${pLabel}`);
     }
 
-    let dlg;
-    try {
-      dlg = app.displayDialog(lines.join('\\n'), {
-        withTitle: 'email-mcp \u2014 Add Reminder?',
-        buttons: ['Cancel', 'Add Reminder'],
-        defaultButton: 'Add Reminder',
-        cancelButton: 'Cancel',
-        givingUpAfter: 60,
-      });
-    } catch(e) {
-      return JSON.stringify({ status: 'cancelled' });
-    }
-    if (dlg.gaveUp) return JSON.stringify({ status: 'timed_out' });
-    if (dlg.buttonReturned !== 'Add Reminder') return JSON.stringify({ status: 'cancelled' });
+    lines.push(`set dialogText to "${escapeAS(dlgParts[0])}"`);
+    dlgParts.slice(1).forEach((dl) => {
+      lines.push(`set dialogText to dialogText & return & "${escapeAS(dl)}"`);
+    });
+    lines.push(
+      'try',
+      '  display dialog dialogText with title "email-mcp \u2014 Add Reminder?" buttons {"Cancel", "Add Reminder"} default button "Add Reminder" cancel button "Cancel" giving up after 60',
+      '  set dlgResult to button returned of result',
+      '  if dlgResult is not "Add Reminder" then',
+      '    return "{\\"status\\":\\"timed_out\\"}"',
+      '  end if',
+      'on error',
+      '  return "{\\"status\\":\\"cancelled\\"}"',
+      'end try',
+      '',
+    );
   }
 
-  let targetList;
-  try {
-    targetList = listName
-      ? Reminders.lists.whose({ name: listName })[0]
-      : Reminders.defaultList;
-  } catch(e) {
-    targetList = Reminders.defaultList;
-  }
-  if (!targetList) {
-    return JSON.stringify({ status: 'no_display', error: 'Reminders list not found' });
-  }
-
-  const props = { name: title, completed: false };
-  if (notes)    props.body     = notes;
-  if (priority) props.priority = priority;
-  if (dueStr) {
-    try { props.dueDate = new Date(dueStr); } catch(e) {}
+  lines.push('tell application "Reminders"');
+  if (listName) {
+    lines.push(
+      '  try',
+      `    set targetList to list "${listName}"`,
+      '  on error',
+      '    set targetList to default list',
+      '  end try',
+    );
+  } else {
+    lines.push('  set targetList to default list');
   }
 
-  const reminder = Reminders.Reminder(props);
-  targetList.reminders.push(reminder);
+  const propsParts = [`name:"${title}", completed:false`];
+  if (notes) {
+    propsParts.push(`body:"${notes}"`);
+  }
+  if (priority > 0) {
+    propsParts.push(`priority:${priority}`);
+  }
+  const propsStr = `{${propsParts.join(', ')}}`;
 
-  let rid = '';
-  try { rid = reminder.id(); } catch(e) {}
-  let finalList = '';
-  try { finalList = targetList.name(); } catch(e) {}
+  lines.push(
+    `  set newReminder to make new reminder at end of reminders of targetList with properties ${propsStr}`,
+  );
 
-  return JSON.stringify({ status: 'added', reminderId: rid, listName: finalList });
-})()`;
+  if (dueDate) {
+    const dueParsed = dueDate.replace(/\.\d+Z$/, '');
+    lines.push(
+      '  try',
+      `    set dueStr to do shell script "date -j -f '%Y-%m-%dT%H:%M:%S' '${dueParsed}' '+%s'"`,
+      '    set due date of newReminder to ((dueStr as number) as date)',
+      '  end try',
+    );
+  }
+
+  lines.push(
+    '  set remId to id of newReminder',
+    '  set finalList to name of targetList',
+    'end tell',
+    '',
+    'return "{\\"status\\":\\"added\\",\\"reminderId\\":\\"" & remId & "\\",\\"listName\\":\\"" & finalList & "\\"}"',
+  );
+
+  return lines.join('\n');
 }
 
 async function addReminderMacOS(
   input: ReminderInput,
   confirm: boolean,
 ): Promise<AddReminderResult> {
-  const script = buildReminderJXAScript(input, confirm);
+  const script = buildReminderAppleScript(input, confirm);
 
   try {
-    const { stdout } = await execFile('osascript', ['-l', 'JavaScript', '-e', script], {
+    const { stdout } = await execFile('osascript', ['-e', script], {
       timeout: 90_000,
     });
     const result = JSON.parse(stdout.trim()) as {
