@@ -70,10 +70,25 @@ export interface AccountConfig {
   smtp: SmtpConfig;
 }
 
+export interface WatcherConfig {
+  enabled: boolean;
+  folders: string[];
+  idleTimeout: number;
+}
+
+export interface HooksConfig {
+  onNewEmail: 'triage' | 'notify' | 'none';
+  autoLabel: boolean;
+  autoFlag: boolean;
+  batchDelay: number;
+}
+
 export interface AppConfig {
   settings: {
     rateLimit: number;
     readOnly: boolean;
+    watcher: WatcherConfig;
+    hooks: HooksConfig;
   };
   accounts: AccountConfig[];
 }

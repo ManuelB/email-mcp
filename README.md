@@ -5,7 +5,7 @@
 
 An MCP (Model Context Protocol) server providing comprehensive email capabilities via IMAP and SMTP.
 
-Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 34 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support, email scheduling, calendar extraction, analytics, provider-aware label management, and a guided setup wizard.
+Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 35 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support, email scheduling, calendar extraction, analytics, provider-aware label management, real-time IMAP IDLE watcher with AI-powered triage, and a guided setup wizard.
 
 ## Table of Contents
 
@@ -174,6 +174,11 @@ port = 465
 tls = true
 starttls = false
 verify_ssl = true
+
+[accounts.smtp.pool]
+enabled = true
+max_connections = 1
+max_messages = 100
 ```
 
 #### OAuth2
@@ -199,6 +204,11 @@ tls = true
 host = "smtp.gmail.com"
 port = 465
 tls = true
+
+[accounts.smtp.pool]
+enabled = true
+max_connections = 1
+max_messages = 100
 ```
 
 #### Environment Variables
@@ -220,6 +230,9 @@ For single-account setups (overrides config file):
 | `MCP_EMAIL_SMTP_TLS` | `true` | SMTP TLS |
 | `MCP_EMAIL_SMTP_STARTTLS` | `false` | SMTP STARTTLS |
 | `MCP_EMAIL_SMTP_VERIFY_SSL` | `true` | Verify SSL certificates |
+| `MCP_EMAIL_SMTP_POOL_ENABLED` | `true` | Enable SMTP transport pooling |
+| `MCP_EMAIL_SMTP_POOL_MAX_CONNECTIONS` | `1` | Max pooled SMTP connections |
+| `MCP_EMAIL_SMTP_POOL_MAX_MESSAGES` | `100` | Max messages per pooled connection |
 | `MCP_EMAIL_RATE_LIMIT` | `10` | Max sends per minute |
 
 ### Email Scheduling
@@ -232,9 +245,38 @@ The scheduler enables future email delivery with a layered architecture:
 
 Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled/` with status-based locking and up to 3 retry attempts.
 
+### Real-time Watcher & AI Hooks
+
+The IMAP IDLE watcher monitors configured mailboxes in real-time using persistent IDLE connections (separate from tool connections). When new emails arrive:
+
+1. **Notify mode** (default) — Logs new emails via MCP notifications
+2. **Triage mode** — Uses MCP sampling (`sampling/createMessage`) to ask the AI to analyze, prioritize, label, and flag emails automatically
+
+Configure in `config.toml`:
+
+```toml
+[settings.watcher]
+enabled = true
+folders = ["INBOX"]
+idle_timeout = 1740     # 29 minutes (IMAP spec max is 30)
+
+[settings.hooks]
+on_new_email = "triage" # "triage" | "notify" | "none"
+auto_label = true       # apply AI-suggested labels
+auto_flag = true        # flag urgent emails
+batch_delay = 5         # seconds to batch before triage
+```
+
+Features:
+- **Auto-reconnect** — Exponential backoff (1s → 60s) on connection failures
+- **Batching** — Groups arrivals within a configurable delay to reduce AI calls
+- **Rate limiting** — Max 10 sampling calls per minute
+- **Graceful degradation** — Falls back to notify mode if client doesn't support sampling
+- **Resource subscriptions** — Pushes `notifications/resources/updated` for unread counts
+
 ## API
 
-### Tools (34)
+### Tools (35)
 
 #### Read (13)
 
@@ -289,6 +331,12 @@ Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled
 | `remove_label` | Remove a label from an email |
 | `create_label` | Create a new label |
 | `delete_label` | Delete a label |
+
+#### Watcher (1)
+
+| Tool | Description |
+|------|-------------|
+| `get_watcher_status` | Show IMAP IDLE connections, folders being monitored, and last-seen UIDs |
 
 ### Prompts (7)
 
@@ -353,8 +401,11 @@ src/
 │   ├── template.service.ts — Email template engine
 │   ├── oauth.service.ts   — OAuth2 token management
 │   ├── calendar.service.ts — ICS/iCalendar parsing
-│   └── scheduler.service.ts — Email scheduling queue
-├── tools/                 — MCP tool definitions (34)
+│   ├── scheduler.service.ts — Email scheduling queue
+│   ├── watcher.service.ts — IMAP IDLE real-time watcher with auto-reconnect
+│   ├── hooks.service.ts   — AI triage via MCP sampling + auto-labeling/flagging
+│   └── event-bus.ts       — Typed EventEmitter for internal email events
+├── tools/                 — MCP tool definitions (35)
 ├── prompts/               — MCP prompt definitions (7)
 ├── resources/             — MCP resource definitions (6)
 ├── safety/                — Audit trail and rate limiter

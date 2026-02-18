@@ -46,6 +46,21 @@ function loadFromEnv(): RawAppConfig | null {
     settings: {
       rate_limit: parseInt(process.env.MCP_EMAIL_RATE_LIMIT ?? '10', 10),
       read_only: process.env.MCP_EMAIL_READ_ONLY === 'true',
+      watcher: {
+        enabled: process.env.MCP_EMAIL_WATCHER_ENABLED === 'true',
+        folders: (process.env.MCP_EMAIL_WATCHER_FOLDERS ?? 'INBOX')
+          .split(',')
+          .map((f) => f.trim())
+          .filter(Boolean),
+        idle_timeout: parseInt(process.env.MCP_EMAIL_WATCHER_IDLE_TIMEOUT ?? '1740', 10),
+      },
+      hooks: {
+        on_new_email:
+          (process.env.MCP_EMAIL_HOOK_ON_NEW_EMAIL as 'triage' | 'notify' | 'none') ?? 'notify',
+        auto_label: process.env.MCP_EMAIL_HOOK_AUTO_LABEL === 'true',
+        auto_flag: process.env.MCP_EMAIL_HOOK_AUTO_FLAG === 'true',
+        batch_delay: parseInt(process.env.MCP_EMAIL_HOOK_BATCH_DELAY ?? '5', 10),
+      },
     },
     accounts: [
       {
@@ -144,6 +159,17 @@ function normalizeConfig(raw: RawAppConfig): AppConfig {
     settings: {
       rateLimit: raw.settings.rate_limit,
       readOnly: raw.settings.read_only,
+      watcher: {
+        enabled: raw.settings.watcher.enabled,
+        folders: raw.settings.watcher.folders,
+        idleTimeout: raw.settings.watcher.idle_timeout,
+      },
+      hooks: {
+        onNewEmail: raw.settings.hooks.on_new_email,
+        autoLabel: raw.settings.hooks.auto_label,
+        autoFlag: raw.settings.hooks.auto_flag,
+        batchDelay: raw.settings.hooks.batch_delay,
+      },
     },
     accounts: raw.accounts.map(normalizeAccount),
   };
@@ -218,6 +244,17 @@ export function generateTemplate(): string {
 rate_limit = 10  # max emails per minute per account
 read_only = false  # set to true to disable all write operations
 
+# [settings.watcher]
+# enabled = false        # enable IMAP IDLE real-time monitoring
+# folders = ["INBOX"]    # folders to watch per account
+# idle_timeout = 1740    # seconds (29 min, IMAP max is 30)
+
+# [settings.hooks]
+# on_new_email = "notify"  # "triage" (AI) | "notify" (log) | "none"
+# auto_label = false       # auto-apply AI-suggested labels
+# auto_flag = false        # auto-flag urgent emails
+# batch_delay = 5          # seconds to batch before processing
+
 [[accounts]]
 name = "personal"
 email = "you@example.com"
@@ -239,6 +276,11 @@ port = 465
 tls = true
 starttls = false
 verify_ssl = true
+
+[accounts.smtp.pool]
+enabled = true
+max_connections = 1
+max_messages = 100
 `;
 }
 

@@ -57,13 +57,51 @@ export const AccountConfigSchema = z
     message: 'Either password or oauth2 config is required',
   });
 
+export const WatcherConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  folders: z.array(z.string()).default(['INBOX']),
+  idle_timeout: z.number().int().min(60).max(1740).default(1740),
+});
+
+export const HooksConfigSchema = z.object({
+  on_new_email: z.enum(['triage', 'notify', 'none']).default('notify'),
+  auto_label: z.boolean().default(false),
+  auto_flag: z.boolean().default(false),
+  batch_delay: z.number().int().min(1).max(60).default(5),
+});
+
 export const SettingsSchema = z.object({
   rate_limit: z.number().int().min(1).default(10),
   read_only: z.boolean().default(false),
+  watcher: WatcherConfigSchema.default({
+    enabled: false,
+    folders: ['INBOX'],
+    idle_timeout: 1740,
+  }),
+  hooks: HooksConfigSchema.default({
+    on_new_email: 'notify',
+    auto_label: false,
+    auto_flag: false,
+    batch_delay: 5,
+  }),
 });
 
 export const AppConfigFileSchema = z.object({
-  settings: SettingsSchema.default({ rate_limit: 10, read_only: false }),
+  settings: SettingsSchema.default({
+    rate_limit: 10,
+    read_only: false,
+    watcher: {
+      enabled: false,
+      folders: ['INBOX'],
+      idle_timeout: 1740,
+    },
+    hooks: {
+      on_new_email: 'notify',
+      auto_label: false,
+      auto_flag: false,
+      batch_delay: 5,
+    },
+  }),
   accounts: z.array(AccountConfigSchema).min(1, 'At least one account is required'),
 });
 

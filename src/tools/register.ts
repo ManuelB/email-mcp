@@ -12,6 +12,7 @@ import type ImapService from '../services/imap.service.js';
 import type SchedulerService from '../services/scheduler.service.js';
 import type SmtpService from '../services/smtp.service.js';
 import type TemplateService from '../services/template.service.js';
+import type WatcherService from '../services/watcher.service.js';
 import type { AppConfig } from '../types/index.js';
 import registerAccountsTools from './accounts.tool.js';
 import registerAnalyticsTools from './analytics.tool.js';
@@ -31,6 +32,7 @@ import registerSchedulerTools from './scheduler.tool.js';
 import registerSendTools from './send.tool.js';
 import { registerTemplateReadTools, registerTemplateWriteTools } from './templates.tool.js';
 import registerThreadTools from './thread.tool.js';
+import registerWatcherTools from './watcher.tool.js';
 
 export default function registerAllTools(
   server: McpServer,
@@ -41,6 +43,7 @@ export default function registerAllTools(
   templateService: TemplateService,
   calendarService: CalendarService,
   schedulerService: SchedulerService,
+  watcherService: WatcherService,
 ): void {
   const { readOnly } = config.settings;
 
@@ -56,6 +59,7 @@ export default function registerAllTools(
   registerAnalyticsTools(server, imapService);
   registerHealthTools(server, connections, imapService);
   registerLocateTools(server, imapService);
+  registerWatcherTools(server, watcherService);
 
   // Write tools — skipped in read-only mode
   if (!readOnly) {

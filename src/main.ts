@@ -20,11 +20,13 @@ import registerAllResources from './resources/register.js';
 import RateLimiter from './safety/rate-limiter.js';
 import createServer, { PKG_VERSION } from './server.js';
 import CalendarService from './services/calendar.service.js';
+import HooksService from './services/hooks.service.js';
 import ImapService from './services/imap.service.js';
 import OAuthService from './services/oauth.service.js';
 import SchedulerService from './services/scheduler.service.js';
 import SmtpService from './services/smtp.service.js';
 import TemplateService from './services/template.service.js';
+import WatcherService from './services/watcher.service.js';
 import registerAllTools from './tools/register.js';
 
 const HELP = `
@@ -70,6 +72,8 @@ async function runServer(): Promise<void> {
   const templateService = new TemplateService();
   const calendarService = new CalendarService();
   const schedulerService = new SchedulerService(smtpService, imapService);
+  const watcherService = new WatcherService(config.settings.watcher, config.accounts);
+  const hooksService = new HooksService(config.settings.hooks, imapService);
 
   const server = createServer();
   bindServer(server);
@@ -83,12 +87,20 @@ async function runServer(): Promise<void> {
     templateService,
     calendarService,
     schedulerService,
+    watcherService,
   );
   registerAllResources(server, connections, imapService, templateService, schedulerService);
   registerAllPrompts(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Start watcher + hooks after connection so we have access to the low-level server
+  const lowLevelServer = server.server;
+  const clientCaps = lowLevelServer.getClientCapabilities?.() ?? {};
+  hooksService.start(lowLevelServer, { sampling: clientCaps.sampling != null });
+
+  await watcherService.start();
 
   await mcpLog('info', 'server', 'Email MCP server started');
 
@@ -114,6 +126,8 @@ async function runServer(): Promise<void> {
   // Graceful shutdown
   const shutdown = async () => {
     clearInterval(checkInterval);
+    hooksService.stop();
+    await watcherService.stop();
     await connections.closeAll();
     await server.close();
   };
