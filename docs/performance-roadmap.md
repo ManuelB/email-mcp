@@ -370,7 +370,7 @@ These are lower priority but provide meaningful improvements for power users.
 | Connection recycling | `maxMessages: N` | Prevents stale connections |
 | Concurrent sends | `maxConnections: N` | Queue + distribute |
 | TLS/STARTTLS | `secure: true` | Automatic negotiation |
-| OAuth2 | Built-in | Token refresh supported |
+| OAuth2 _(experimental)_ | Built-in | Token refresh supported |
 | Timeouts | `connectionTimeout`, `socketTimeout` | Prevents hanging |
 
 ### What We Build On Top

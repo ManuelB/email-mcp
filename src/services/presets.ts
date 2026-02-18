@@ -212,7 +212,5 @@ Respond ONLY with a JSON array (one object per email, in order). No markdown, no
     ? `\nAdditional context from the user:\n${options.customInstructions}\n`
     : '';
 
-  return preset.systemPrompt
-    .replace('{{LABELS}}', labelsStr)
-    .replace('{{CUSTOM}}', customBlock);
+  return preset.systemPrompt.replace('{{LABELS}}', labelsStr).replace('{{CUSTOM}}', customBlock);
 }

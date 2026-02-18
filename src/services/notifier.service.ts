@@ -301,9 +301,7 @@ export default class NotifierService {
     const title = sanitizeForShell(
       `📧 Email MCP — ${payload.priority === 'urgent' ? 'Urgent' : 'Important'}`,
     );
-    const senderDisplay = sanitizeForShell(
-      payload.sender.name ?? payload.sender.address,
-    );
+    const senderDisplay = sanitizeForShell(payload.sender.name ?? payload.sender.address);
     const subject = sanitizeForShell(payload.subject);
     const body = `From: ${senderDisplay}\n${subject}`;
     const playSound = this.config.sound && payload.priority === 'urgent';
@@ -341,7 +339,8 @@ export default class NotifierService {
   }
 
   private static async execWindows(title: string, body: string): Promise<void> {
-    const ps = `[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); ` +
+    const ps =
+      `[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); ` +
       `$n = New-Object System.Windows.Forms.NotifyIcon; ` +
       `$n.Icon = [System.Drawing.SystemIcons]::Information; ` +
       `$n.Visible = $true; ` +

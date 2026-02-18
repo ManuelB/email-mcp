@@ -99,9 +99,7 @@ function applyBodyFormat(
 }
 
 /** Renders the current read/flag/label state as a concise status line. */
-function formatEmailStatus(
-  email: Pick<Email, 'seen' | 'flagged' | 'answered' | 'labels'>,
-): string {
+function formatEmailStatus(email: Pick<Email, 'seen' | 'flagged' | 'answered' | 'labels'>): string {
   const parts: string[] = [email.seen ? '✓ Read' : '🔵 Unread'];
   if (email.flagged) parts.push('⭐ Flagged');
   if (email.answered) parts.push('↩️ Replied');
@@ -137,10 +135,7 @@ export default function registerEmailsTools(server: McpServer, imapService: Imap
         .boolean()
         .optional()
         .describe('Filter: true=has attachments, false=no attachments'),
-      answered: z
-        .boolean()
-        .optional()
-        .describe('Filter: true=replied, false=not yet replied'),
+      answered: z.boolean().optional().describe('Filter: true=replied, false=not yet replied'),
     },
     { readOnlyHint: true, destructiveHint: false },
     async (params) => {
@@ -253,7 +248,9 @@ export default function registerEmailsTools(server: McpServer, imapService: Imap
         }
 
         parts.push('', '--- Body ---', '');
-        parts.push(applyBodyFormat(email.bodyText, email.bodyHtml, format as BodyFormat, maxLength));
+        parts.push(
+          applyBodyFormat(email.bodyText, email.bodyHtml, format as BodyFormat, maxLength),
+        );
 
         if (markRead) {
           await imapService.setFlags(account, emailId, mailbox, 'read');
@@ -322,7 +319,12 @@ export default function registerEmailsTools(server: McpServer, imapService: Imap
           const from = email.from.name
             ? `${email.from.name} <${email.from.address}>`
             : email.from.address;
-          const body = applyBodyFormat(email.bodyText, email.bodyHtml, format as BodyFormat, maxLength);
+          const body = applyBodyFormat(
+            email.bodyText,
+            email.bodyHtml,
+            format as BodyFormat,
+            maxLength,
+          );
           const attachLine =
             email.attachments.length > 0
               ? `📎 ${email.attachments.map((a) => a.filename).join(', ')}`
@@ -343,9 +345,7 @@ export default function registerEmailsTools(server: McpServer, imapService: Imap
           );
         } else {
           const err = outcome.reason as unknown;
-          errors.push(
-            `[${emailId}] Error: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          errors.push(`[${emailId}] Error: ${err instanceof Error ? err.message : String(err)}`);
         }
       });
 

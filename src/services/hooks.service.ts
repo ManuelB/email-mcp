@@ -15,9 +15,8 @@ import type { EmailMeta, HookRule, HooksConfig } from '../types/index.js';
 import type { NewEmailEvent } from './event-bus.js';
 import eventBus from './event-bus.js';
 import type ImapService from './imap.service.js';
-import NotifierService from './notifier.service.js';
-
 import type { AlertPayload, UrgencyLevel } from './notifier.service.js';
+import NotifierService from './notifier.service.js';
 
 import { buildSystemPrompt } from './presets.js';
 
@@ -55,7 +54,10 @@ type StaticMatchOutcome = RuleMatchResult | RuleNoMatch;
 
 /** Convert a glob-like pattern (with `*` wildcards and `|` OR) to a RegExp. */
 function globToRegex(pattern: string): RegExp {
-  const parts = pattern.split('|').map((p) => p.trim()).filter(Boolean);
+  const parts = pattern
+    .split('|')
+    .map((p) => p.trim())
+    .filter(Boolean);
   const regexParts = parts.map((part) => {
     const escaped = part.replace(/[.+?^${}()[\]\\]/g, '\\$&');
     return escaped.replace(/\*/g, '.*');
@@ -227,14 +229,16 @@ export default class HooksService {
   private static emailMatchesRule(email: BatchEmail, rule: HookRule): boolean {
     const { match } = rule;
     const fromAddr = email.meta.from.address;
-    const fromFull = email.meta.from.name
-      ? `${email.meta.from.name} <${fromAddr}>`
-      : fromAddr;
+    const fromFull = email.meta.from.name ? `${email.meta.from.name} <${fromAddr}>` : fromAddr;
     const toAddrs = email.meta.to.map((t) => t.address).join(', ');
     const { subject } = email.meta;
 
     // All specified match conditions must pass (AND logic)
-    if (match.from && !matchesPattern(match.from, fromAddr) && !matchesPattern(match.from, fromFull)) {
+    if (
+      match.from &&
+      !matchesPattern(match.from, fromAddr) &&
+      !matchesPattern(match.from, fromFull)
+    ) {
       return false;
     }
     if (match.to && !matchesPattern(match.to, toAddrs)) {
@@ -257,7 +261,11 @@ export default class HooksService {
         try {
           await this.imapService.addLabel(email.account, email.mailbox, email.meta.id, label);
         } catch {
-          await mcpLog('warning', 'hooks', `Could not add label "${label}" to email ${email.meta.id}`);
+          await mcpLog(
+            'warning',
+            'hooks',
+            `Could not add label "${label}" to email ${email.meta.id}`,
+          );
         }
       });
       await Promise.allSettled(labelOps);
@@ -354,9 +362,7 @@ export default class HooksService {
       if (!srv) throw new Error('Server not available');
 
       const result = await srv.createMessage({
-        messages: [
-          { role: 'user', content: { type: 'text', text: userPrompt } },
-        ],
+        messages: [{ role: 'user', content: { type: 'text', text: userPrompt } }],
         systemPrompt: this.resolvedSystemPrompt,
         maxTokens: 1000,
         modelPreferences: {

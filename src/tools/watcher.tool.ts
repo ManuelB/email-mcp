@@ -72,9 +72,8 @@ export default function registerWatcherTools(
 
       const lines = presets.map((p) => {
         const active = p.id === activePreset ? ' ✅ (active)' : '';
-        const labels = p.suggestedLabels.length > 0
-          ? `\n     Labels: ${p.suggestedLabels.join(', ')}`
-          : '';
+        const labels =
+          p.suggestedLabels.length > 0 ? `\n     Labels: ${p.suggestedLabels.join(', ')}` : '';
         return `• ${p.name} [${p.id}]${active}\n     ${p.description}${labels}`;
       });
 
@@ -82,7 +81,8 @@ export default function registerWatcherTools(
         content: [
           {
             type: 'text' as const,
-            text: `🎯 Available Hook Presets:\n\n${lines.join('\n\n')}` +
+            text:
+              `🎯 Available Hook Presets:\n\n${lines.join('\n\n')}` +
               `\n\nTo change preset, set \`preset = "${activePreset}"\` in [settings.hooks] of your config.toml.`,
           },
         ],
@@ -110,7 +110,9 @@ export default function registerWatcherTools(
       ];
 
       if (hooksConfig.customInstructions) {
-        sections.push(`\n📝 Custom Instructions:\n   ${hooksConfig.customInstructions.replace(/\n/g, '\n   ')}`);
+        sections.push(
+          `\n📝 Custom Instructions:\n   ${hooksConfig.customInstructions.replace(/\n/g, '\n   ')}`,
+        );
       }
 
       if (hooksConfig.rules.length > 0) {
@@ -122,12 +124,16 @@ export default function registerWatcherTools(
           if (rule.match.subject) matchParts.push(`subject=${rule.match.subject}`);
 
           const actionParts: string[] = [];
-          if (rule.actions.labels?.length) actionParts.push(`labels=[${rule.actions.labels.join(', ')}]`);
+          if (rule.actions.labels?.length) {
+            actionParts.push(`labels=[${rule.actions.labels.join(', ')}]`);
+          }
           if (rule.actions.flag) actionParts.push('flag');
           if (rule.actions.markRead) actionParts.push('mark_read');
           if (rule.actions.alert) actionParts.push('🔔 alert');
 
-          sections.push(`   • "${rule.name}": ${matchParts.join(' & ')} → ${actionParts.join(', ')}`);
+          sections.push(
+            `   • "${rule.name}": ${matchParts.join(' & ')} → ${actionParts.join(', ')}`,
+          );
         });
       } else {
         sections.push('\n📋 Static Rules: none configured');
@@ -223,10 +229,7 @@ export default function registerWatcherTools(
     'Send a test desktop notification to verify that OS permissions are correctly configured. ' +
       'Use check_notification_setup first to diagnose any issues.',
     {
-      sound: z
-        .boolean()
-        .default(false)
-        .describe('Include a sound alert in the test notification'),
+      sound: z.boolean().default(false).describe('Include a sound alert in the test notification'),
     },
     { readOnlyHint: false, destructiveHint: false },
     async ({ sound }) => {
@@ -260,14 +263,8 @@ export default function registerWatcherTools(
       'Use save=true to persist changes to the config file. ' +
       'Omit any field to leave it unchanged.',
     {
-      desktop: z
-        .boolean()
-        .optional()
-        .describe('Enable/disable desktop notifications'),
-      sound: z
-        .boolean()
-        .optional()
-        .describe('Enable/disable sound alerts for urgent emails'),
+      desktop: z.boolean().optional().describe('Enable/disable desktop notifications'),
+      sound: z.boolean().optional().describe('Enable/disable sound alerts for urgent emails'),
       urgency_threshold: z
         .enum(['urgent', 'high', 'normal', 'low'])
         .optional()
@@ -286,7 +283,14 @@ export default function registerWatcherTools(
         .describe('Persist changes to config.toml (default: runtime only)'),
     },
     { readOnlyHint: false, destructiveHint: false },
-    async ({ desktop, sound, urgency_threshold: urgencyThreshold, webhook_url: webhookUrl, webhook_events: webhookEvents, save }) => {
+    async ({
+      desktop,
+      sound,
+      urgency_threshold: urgencyThreshold,
+      webhook_url: webhookUrl,
+      webhook_events: webhookEvents,
+      save,
+    }) => {
       try {
         const notifier = hooksService.getNotifier();
 
@@ -301,15 +305,18 @@ export default function registerWatcherTools(
         if (Object.keys(partial).length === 0) {
           const current = notifier.getConfig();
           return {
-            content: [{
-              type: 'text' as const,
-              text: `No changes specified. Current config:\n` +
-                `  Desktop:   ${current.desktop ? '✅' : '❌'}\n` +
-                `  Sound:     ${current.sound ? '✅' : '❌'}\n` +
-                `  Threshold: ${current.urgencyThreshold}\n` +
-                `  Webhook:   ${current.webhookUrl || '(none)'}\n` +
-                `  Events:    ${current.webhookEvents.join(', ')}`,
-            }],
+            content: [
+              {
+                type: 'text' as const,
+                text:
+                  `No changes specified. Current config:\n` +
+                  `  Desktop:   ${current.desktop ? '✅' : '❌'}\n` +
+                  `  Sound:     ${current.sound ? '✅' : '❌'}\n` +
+                  `  Threshold: ${current.urgencyThreshold}\n` +
+                  `  Webhook:   ${current.webhookUrl || '(none)'}\n` +
+                  `  Events:    ${current.webhookEvents.join(', ')}`,
+              },
+            ],
           };
         }
 
@@ -355,10 +362,12 @@ export default function registerWatcherTools(
       } catch (err) {
         return {
           isError: true,
-          content: [{
-            type: 'text' as const,
-            text: `Failed to update alerts config: ${err instanceof Error ? err.message : String(err)}`,
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: `Failed to update alerts config: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
         };
       }
     },

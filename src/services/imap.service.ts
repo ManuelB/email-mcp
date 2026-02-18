@@ -313,7 +313,11 @@ export default class ImapService {
       if (options.hasAttachment !== undefined && uids.length > 0) {
         const filteredUids: number[] = [];
         // eslint-disable-next-line no-restricted-syntax
-        for await (const msg of client.fetch(uids.join(','), { uid: true, bodyStructure: true }, { uid: true })) {
+        for await (const msg of client.fetch(
+          uids.join(','),
+          { uid: true, bodyStructure: true },
+          { uid: true },
+        )) {
           const raw = msg as unknown as Record<string, unknown>;
           if (options.hasAttachment === hasAttachments(raw.bodyStructure)) {
             filteredUids.push(raw.uid as number);
@@ -421,7 +425,15 @@ export default class ImapService {
     accountName: string,
     emailId: string,
     mailbox = 'INBOX',
-  ): Promise<{ seen: boolean; flagged: boolean; answered: boolean; labels: string[]; subject: string; from: string; date: string }> {
+  ): Promise<{
+    seen: boolean;
+    flagged: boolean;
+    answered: boolean;
+    labels: string[];
+    subject: string;
+    from: string;
+    date: string;
+  }> {
     const client = await this.connections.getImapClient(accountName);
     const uid = parseInt(emailId, 10);
 
@@ -444,7 +456,9 @@ export default class ImapService {
       const fromEntry = (envelope.from as Record<string, string>[] | undefined)?.[0];
       let from = '';
       if (fromEntry) {
-        from = fromEntry.name ? `${fromEntry.name} <${fromEntry.address}>` : (fromEntry.address ?? '');
+        from = fromEntry.name
+          ? `${fromEntry.name} <${fromEntry.address}>`
+          : (fromEntry.address ?? '');
       }
 
       return {

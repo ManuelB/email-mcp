@@ -58,7 +58,12 @@ function loadFromEnv(): RawAppConfig | null {
         on_new_email:
           (process.env.MCP_EMAIL_HOOK_ON_NEW_EMAIL as 'triage' | 'notify' | 'none') ?? 'notify',
         preset:
-          (process.env.MCP_EMAIL_HOOK_PRESET as 'inbox-zero' | 'gtd' | 'priority-focus' | 'notification-only' | 'custom') ?? 'priority-focus',
+          (process.env.MCP_EMAIL_HOOK_PRESET as
+            | 'inbox-zero'
+            | 'gtd'
+            | 'priority-focus'
+            | 'notification-only'
+            | 'custom') ?? 'priority-focus',
         auto_label: process.env.MCP_EMAIL_HOOK_AUTO_LABEL === 'true',
         auto_flag: process.env.MCP_EMAIL_HOOK_AUTO_FLAG === 'true',
         batch_delay: parseInt(process.env.MCP_EMAIL_HOOK_BATCH_DELAY ?? '5', 10),
@@ -68,7 +73,11 @@ function loadFromEnv(): RawAppConfig | null {
           desktop: process.env.MCP_EMAIL_ALERT_DESKTOP === 'true',
           sound: process.env.MCP_EMAIL_ALERT_SOUND === 'true',
           urgency_threshold:
-            (process.env.MCP_EMAIL_ALERT_URGENCY_THRESHOLD as 'urgent' | 'high' | 'normal' | 'low') ?? 'high',
+            (process.env.MCP_EMAIL_ALERT_URGENCY_THRESHOLD as
+              | 'urgent'
+              | 'high'
+              | 'normal'
+              | 'low') ?? 'high',
           webhook_url: process.env.MCP_EMAIL_ALERT_WEBHOOK_URL ?? '',
           webhook_events: ['urgent', 'high'],
         },
@@ -166,7 +175,11 @@ function normalizeAccount(raw: RawAccountConfig): AccountConfig {
   };
 }
 
-function normalizeHookRule(raw: { name: string; match: Record<string, string | undefined>; actions: Record<string, unknown> }): HookRule {
+function normalizeHookRule(raw: {
+  name: string;
+  match: Record<string, string | undefined>;
+  actions: Record<string, unknown>;
+}): HookRule {
   return {
     name: raw.name,
     match: {
@@ -175,7 +188,7 @@ function normalizeHookRule(raw: { name: string; match: Record<string, string | u
       subject: raw.match.subject,
     },
     actions: {
-      labels: Array.isArray(raw.actions.labels) ? raw.actions.labels as string[] : undefined,
+      labels: Array.isArray(raw.actions.labels) ? (raw.actions.labels as string[]) : undefined,
       flag: typeof raw.actions.flag === 'boolean' ? raw.actions.flag : undefined,
       markRead: typeof raw.actions.mark_read === 'boolean' ? raw.actions.mark_read : undefined,
       alert: typeof raw.actions.alert === 'boolean' ? raw.actions.alert : undefined,
