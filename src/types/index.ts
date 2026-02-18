@@ -99,6 +99,7 @@ export interface EmailMeta {
   flagged: boolean;
   answered: boolean;
   hasAttachments: boolean;
+  labels: string[];
   preview?: string;
 }
 
@@ -261,6 +262,18 @@ export interface QuotaInfo {
   usedMb: number;
   totalMb: number;
   percentage: number;
+}
+
+// ---------------------------------------------------------------------------
+// Labels
+// ---------------------------------------------------------------------------
+
+export type LabelStrategyType = 'protonmail' | 'gmail' | 'keyword' | 'unsupported';
+
+export interface LabelInfo {
+  name: string;
+  path?: string;
+  strategy: LabelStrategyType;
 }
 
 // ---------------------------------------------------------------------------

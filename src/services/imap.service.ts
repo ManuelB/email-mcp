@@ -5,7 +5,6 @@
  */
 
 import type { ImapFlow } from 'imapflow';
-
 import type ConnectionManager from '../connections/manager.js';
 import type {
   AttachmentMeta,
@@ -16,11 +15,14 @@ import type {
   EmailAddress,
   EmailMeta,
   EmailStats,
+  LabelInfo,
   Mailbox,
   PaginatedResult,
   QuotaInfo,
   SenderStat,
 } from '../types/index.js';
+import type { LabelStrategy } from './label-strategy.js';
+import { detectLabelStrategy } from './label-strategy.js';
 
 // ---------------------------------------------------------------------------
 // Helpers (must be defined before ImapService)
@@ -105,6 +107,9 @@ function messageToEmailMeta(msg: Record<string, unknown>): EmailMeta {
   const envelope = (msg.envelope ?? {}) as Record<string, unknown>;
   const flags = new Set((msg.flags ?? []) as string[]);
 
+  // Extract non-system flags as labels (IMAP keywords)
+  const labels = [...flags].filter((f) => !f.startsWith('\\'));
+
   // Extract preview from source buffer
   let preview: string | undefined;
   if (msg.source && Buffer.isBuffer(msg.source)) {
@@ -131,6 +136,7 @@ function messageToEmailMeta(msg: Record<string, unknown>): EmailMeta {
     flagged: flags.has('\\Flagged'),
     answered: flags.has('\\Answered'),
     hasAttachments: hasAttachments(msg.bodyStructure),
+    labels,
     preview,
   };
 }
@@ -208,7 +214,19 @@ async function messageToEmail(
 // ---------------------------------------------------------------------------
 
 export default class ImapService {
+  private labelStrategies = new Map<string, LabelStrategy>();
+
   constructor(private connections: ConnectionManager) {}
+
+  private async getLabelStrategy(accountName: string): Promise<LabelStrategy> {
+    const cached = this.labelStrategies.get(accountName);
+    if (cached) return cached;
+
+    const client = await this.connections.getImapClient(accountName);
+    const strategy = await detectLabelStrategy(client);
+    this.labelStrategies.set(accountName, strategy);
+    return strategy;
+  }
 
   // -------------------------------------------------------------------------
   // Mailboxes
@@ -510,6 +528,50 @@ export default class ImapService {
     } finally {
       lock.release();
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Labels
+  // -------------------------------------------------------------------------
+
+  async listLabels(accountName: string): Promise<LabelInfo[]> {
+    const strategy = await this.getLabelStrategy(accountName);
+    const client = await this.connections.getImapClient(accountName);
+    return strategy.listLabels(client);
+  }
+
+  async addLabel(
+    accountName: string,
+    emailId: string,
+    mailbox: string,
+    label: string,
+  ): Promise<void> {
+    const strategy = await this.getLabelStrategy(accountName);
+    const client = await this.connections.getImapClient(accountName);
+    await strategy.addLabel(client, emailId, mailbox, label);
+  }
+
+  async removeLabel(
+    accountName: string,
+    emailId: string,
+    mailbox: string,
+    label: string,
+  ): Promise<void> {
+    const strategy = await this.getLabelStrategy(accountName);
+    const client = await this.connections.getImapClient(accountName);
+    await strategy.removeLabel(client, emailId, mailbox, label);
+  }
+
+  async createLabel(accountName: string, name: string): Promise<void> {
+    const strategy = await this.getLabelStrategy(accountName);
+    const client = await this.connections.getImapClient(accountName);
+    await strategy.createLabel(client, name);
+  }
+
+  async deleteLabel(accountName: string, name: string): Promise<void> {
+    const strategy = await this.getLabelStrategy(accountName);
+    const client = await this.connections.getImapClient(accountName);
+    await strategy.deleteLabel(client, name);
   }
 
   // -------------------------------------------------------------------------

@@ -25,8 +25,9 @@ function formatEmailMeta(email: EmailMeta): string {
     .join(' ');
 
   const from = email.from.name ? `${email.from.name} <${email.from.address}>` : email.from.address;
+  const labelStr = email.labels.length > 0 ? `\n  🏷️ ${email.labels.join(', ')}` : '';
 
-  return `[${email.id}] ${flags} ${email.subject}\n  From: ${from} | ${email.date}${email.preview ? `\n  ${email.preview}` : ''}`;
+  return `[${email.id}] ${flags} ${email.subject}\n  From: ${from} | ${email.date}${labelStr}${email.preview ? `\n  ${email.preview}` : ''}`;
 }
 
 export default function registerEmailsTools(server: McpServer, imapService: ImapService): void {

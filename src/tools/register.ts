@@ -23,6 +23,7 @@ import registerDraftTools from './drafts.tool.js';
 import registerEmailsTools from './emails.tool.js';
 import registerFolderTools from './folders.tool.js';
 import registerHealthTools from './health.tool.js';
+import registerLabelTools from './label.tool.js';
 import registerLocateTools from './locate.tool.js';
 import registerMailboxesTools from './mailboxes.tool.js';
 import registerManageTools from './manage.tool.js';
@@ -60,6 +61,7 @@ export default function registerAllTools(
   if (!readOnly) {
     registerSendTools(server, smtpService);
     registerManageTools(server, imapService);
+    registerLabelTools(server, imapService);
     registerBulkTools(server, imapService);
     registerDraftTools(server, imapService, smtpService);
     registerFolderTools(server, imapService);

@@ -5,7 +5,7 @@
 
 An MCP (Model Context Protocol) server providing comprehensive email capabilities via IMAP and SMTP.
 
-Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 29 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support, email scheduling, calendar extraction, analytics, and a guided setup wizard.
+Enables AI assistants to read, search, send, manage, schedule, and analyze emails across multiple accounts. Exposes 34 tools, 7 prompts, and 6 resources over the MCP protocol with OAuth2 support, email scheduling, calendar extraction, analytics, provider-aware label management, and a guided setup wizard.
 
 ## Table of Contents
 
@@ -224,7 +224,7 @@ Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled
 
 ## API
 
-### Tools (28)
+### Tools (34)
 
 #### Read (13)
 
@@ -269,6 +269,16 @@ Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled
 | `create_mailbox` | Create a new mailbox folder |
 | `rename_mailbox` | Rename an existing mailbox folder |
 | `delete_mailbox` | Permanently delete a mailbox and contents |
+
+#### Labels (5)
+
+| Tool | Description |
+|------|-------------|
+| `list_labels` | Discover available labels (auto-detects provider strategy) |
+| `add_label` | Add a label to an email (ProtonMail folders, Gmail X-GM-LABELS, or IMAP keywords) |
+| `remove_label` | Remove a label from an email |
+| `create_label` | Create a new label |
+| `delete_label` | Delete a label |
 
 ### Prompts (7)
 
@@ -327,12 +337,13 @@ src/
 │   └── manager.ts         — Lazy persistent IMAP/SMTP with OAuth2
 ├── services/              — Business logic
 │   ├── imap.service.ts    — IMAP operations
+│   ├── label-strategy.ts  — Provider-aware label strategy (ProtonMail/Gmail/IMAP keywords)
 │   ├── smtp.service.ts    — SMTP operations
 │   ├── template.service.ts — Email template engine
 │   ├── oauth.service.ts   — OAuth2 token management
 │   ├── calendar.service.ts — ICS/iCalendar parsing
 │   └── scheduler.service.ts — Email scheduling queue
-├── tools/                 — MCP tool definitions (28)
+├── tools/                 — MCP tool definitions (34)
 ├── prompts/               — MCP prompt definitions (7)
 ├── resources/             — MCP resource definitions (6)
 ├── safety/                — Audit trail and rate limiter
