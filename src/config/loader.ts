@@ -64,6 +64,14 @@ function loadFromEnv(): RawAppConfig | null {
         batch_delay: parseInt(process.env.MCP_EMAIL_HOOK_BATCH_DELAY ?? '5', 10),
         custom_instructions: process.env.MCP_EMAIL_HOOK_CUSTOM_INSTRUCTIONS,
         rules: [],
+        alerts: {
+          desktop: process.env.MCP_EMAIL_ALERT_DESKTOP === 'true',
+          sound: process.env.MCP_EMAIL_ALERT_SOUND === 'true',
+          urgency_threshold:
+            (process.env.MCP_EMAIL_ALERT_URGENCY_THRESHOLD as 'urgent' | 'high' | 'normal' | 'low') ?? 'high',
+          webhook_url: process.env.MCP_EMAIL_ALERT_WEBHOOK_URL ?? '',
+          webhook_events: ['urgent', 'high'],
+        },
       },
     },
     accounts: [
@@ -170,6 +178,7 @@ function normalizeHookRule(raw: { name: string; match: Record<string, string | u
       labels: Array.isArray(raw.actions.labels) ? raw.actions.labels as string[] : undefined,
       flag: typeof raw.actions.flag === 'boolean' ? raw.actions.flag : undefined,
       markRead: typeof raw.actions.mark_read === 'boolean' ? raw.actions.mark_read : undefined,
+      alert: typeof raw.actions.alert === 'boolean' ? raw.actions.alert : undefined,
     },
   };
 }
@@ -193,6 +202,13 @@ function normalizeConfig(raw: RawAppConfig): AppConfig {
         customInstructions: raw.settings.hooks.custom_instructions,
         systemPrompt: raw.settings.hooks.system_prompt,
         rules: (raw.settings.hooks.rules ?? []).map(normalizeHookRule),
+        alerts: {
+          desktop: raw.settings.hooks.alerts?.desktop ?? false,
+          sound: raw.settings.hooks.alerts?.sound ?? false,
+          urgencyThreshold: raw.settings.hooks.alerts?.urgency_threshold ?? 'high',
+          webhookUrl: raw.settings.hooks.alerts?.webhook_url ?? '',
+          webhookEvents: raw.settings.hooks.alerts?.webhook_events ?? ['urgent', 'high'],
+        },
       },
     },
     accounts: raw.accounts.map(normalizeAccount),
@@ -289,9 +305,16 @@ read_only = false  # set to true to disable all write operations
 # actions = { labels = ["Dev"], mark_read = true }
 #
 # [[settings.hooks.rules]]
-# name = "Newsletter Archive"
-# match = { from = "*@substack.com" }
-# actions = { labels = ["Newsletter"] }
+# name = "VIP Contacts"
+# match = { from = "ceo@company.com" }
+# actions = { flag = true, alert = true, labels = ["VIP"] }
+
+# [settings.hooks.alerts]
+# desktop = false         # enable OS-level desktop notifications
+# sound = false           # play sound for urgent emails
+# urgency_threshold = "high" # minimum priority: "urgent" | "high" | "normal" | "low"
+# webhook_url = ""        # HTTP POST to Slack/Discord/ntfy.sh/etc.
+# webhook_events = ["urgent", "high"]  # which priorities trigger webhook
 
 [[accounts]]
 name = "personal"

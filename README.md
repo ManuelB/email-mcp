@@ -308,7 +308,51 @@ actions = { flag = true, labels = ["VIP"] }
 
 Static rules use glob-style patterns (`*@github.com`) with `|` as OR separator (`*@github.com|*@gitlab.com`). All conditions within a match are AND'd. First matching rule wins.
 
-Available actions: `labels` (string array), `flag` (boolean), `mark_read` (boolean).
+Available actions: `labels` (string array), `flag` (boolean), `mark_read` (boolean), `alert` (boolean — forces desktop notification).
+
+#### Alerts
+
+Urgency-based multi-channel notification routing — grab attention for important emails even when you're not looking at the chat. All channels are **opt-in** and disabled by default.
+
+| Priority | Desktop | Sound | MCP Log Level | Webhook |
+|----------|---------|-------|---------------|---------|
+| `urgent` | ✅ Banner | 🔊 Alert | `alert` | ✅ |
+| `high` | ✅ Banner | 🔇 Silent | `warning` | ✅ |
+| `normal` | ❌ | ❌ | `info` | ❌ |
+| `low` | ❌ | ❌ | `debug` | ❌ |
+
+```toml
+[settings.hooks.alerts]
+desktop = true              # OS-level notifications (macOS/Linux/Windows)
+sound = true                # play sound for urgent emails
+urgency_threshold = "high"  # minimum priority to trigger desktop alert
+webhook_url = "https://ntfy.sh/my-email-alerts"  # optional: Slack, Discord, ntfy.sh, etc.
+webhook_events = ["urgent", "high"]
+```
+
+**Supported platforms:** macOS (Notification Center via `osascript`), Linux (`notify-send`), Windows (PowerShell toast). Zero npm dependencies — uses native OS commands.
+
+**Webhook payload:**
+```json
+{
+  "event": "email.urgent",
+  "account": "work",
+  "sender": { "name": "John CEO", "address": "ceo@company.com" },
+  "subject": "Q4 Review Due Today",
+  "priority": "urgent",
+  "labels": ["VIP"],
+  "rule": "VIP Contacts",
+  "timestamp": "2026-02-18T11:30:00Z"
+}
+```
+
+Static rules can force desktop notifications with `alert = true`, regardless of urgency threshold:
+```toml
+[[settings.hooks.rules]]
+name = "VIP Contacts"
+match = { from = "ceo@company.com" }
+actions = { flag = true, alert = true, labels = ["VIP"] }
+```
 
 Features:
 - **Auto-reconnect** — Exponential backoff (1s → 60s) on connection failures
@@ -450,6 +494,7 @@ src/
 │   ├── scheduler.service.ts — Email scheduling queue
 │   ├── watcher.service.ts — IMAP IDLE real-time watcher with auto-reconnect
 │   ├── hooks.service.ts   — AI triage via MCP sampling + static rules + auto-labeling/flagging
+│   ├── notifier.service.ts — Multi-channel notification dispatcher (desktop/sound/webhook)
 │   ├── presets.ts         — Built-in hook presets (inbox-zero, gtd, priority-focus, etc.)
 │   └── event-bus.ts       — Typed EventEmitter for internal email events
 ├── tools/                 — MCP tool definitions (37)

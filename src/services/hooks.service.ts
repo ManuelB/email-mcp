@@ -15,6 +15,10 @@ import type { EmailMeta, HookRule, HooksConfig } from '../types/index.js';
 import type { NewEmailEvent } from './event-bus.js';
 import eventBus from './event-bus.js';
 import type ImapService from './imap.service.js';
+import NotifierService from './notifier.service.js';
+
+import type { AlertPayload, UrgencyLevel } from './notifier.service.js';
+
 import { buildSystemPrompt } from './presets.js';
 
 // ---------------------------------------------------------------------------
@@ -91,11 +95,14 @@ export default class HooksService {
 
   private readonly resolvedSystemPrompt: string;
 
+  private readonly notifier: NotifierService;
+
   private static readonly MAX_SAMPLING_PER_MIN = 10;
 
   constructor(config: HooksConfig, imapService: ImapService) {
     this.config = config;
     this.imapService = imapService;
+    this.notifier = new NotifierService(config.alerts);
     this.resolvedSystemPrompt = buildSystemPrompt(config.preset, {
       customInstructions: config.customInstructions,
       systemPrompt: config.systemPrompt,
@@ -140,6 +147,7 @@ export default class HooksService {
       clearInterval(this.rateResetTimer);
       this.rateResetTimer = null;
     }
+    this.notifier.stop();
     eventBus.removeAllListeners('email:new');
   }
 
@@ -192,7 +200,7 @@ export default class HooksService {
       if (this.config.onNewEmail === 'triage' && this.samplingSupported) {
         await this.triageBatch(needsTriage);
       } else {
-        await HooksService.notifyBatch(needsTriage);
+        await this.notifyBatch(needsTriage);
       }
     }
   }
@@ -263,14 +271,16 @@ export default class HooksService {
       }
     }
 
-    const labelStr = actions.labels?.length ? ` → labels: ${actions.labels.join(', ')}` : '';
-    const flagStr = actions.flag ? ' ⭐' : '';
-    const readStr = actions.markRead ? ' 👁️' : '';
-    await mcpLog(
-      'info',
-      'hooks',
-      `📋 Rule "${rule.name}" matched: "${email.meta.subject}" from ${email.meta.from.address}${flagStr}${readStr}${labelStr}`,
-    );
+    // Send alert via notifier (rule with alert=true forces desktop notification)
+    const payload: AlertPayload = {
+      account: email.account,
+      sender: email.meta.from,
+      subject: email.meta.subject,
+      priority: actions.flag ? 'high' : 'normal',
+      labels: actions.labels,
+      ruleName: rule.name,
+    };
+    await this.notifier.alert(payload, actions.alert === true);
   }
 
   // -------------------------------------------------------------------------
@@ -291,13 +301,18 @@ export default class HooksService {
   }
 
   // -------------------------------------------------------------------------
-  // Notify mode (log-only)
+  // Notify mode (alerts-aware fallback)
   // -------------------------------------------------------------------------
 
-  private static async notifyBatch(emails: BatchEmail[]): Promise<void> {
+  private async notifyBatch(emails: BatchEmail[]): Promise<void> {
     const ops = emails.map(async (e) => {
-      const msg = `📬 New email in ${e.account}/${e.mailbox}: "${e.meta.subject}" from ${e.meta.from.address}`;
-      return mcpLog('info', 'hooks', msg);
+      const payload: AlertPayload = {
+        account: e.account,
+        sender: e.meta.from,
+        subject: e.meta.subject,
+        priority: 'normal',
+      };
+      return this.notifier.alert(payload);
     });
     await Promise.allSettled(ops);
   }
@@ -309,13 +324,13 @@ export default class HooksService {
   private async triageBatch(emails: BatchEmail[]): Promise<void> {
     if (this.rateCounter >= HooksService.MAX_SAMPLING_PER_MIN) {
       await mcpLog('warning', 'hooks', 'Sampling rate limit reached — falling back to notify');
-      await HooksService.notifyBatch(emails);
+      await this.notifyBatch(emails);
       return;
     }
 
     // Skip AI for notification-only preset
     if (this.config.preset === 'notification-only' || !this.resolvedSystemPrompt) {
-      await HooksService.notifyBatch(emails);
+      await this.notifyBatch(emails);
       return;
     }
 
@@ -348,7 +363,7 @@ export default class HooksService {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       await mcpLog('warning', 'hooks', `Sampling failed: ${errMsg} — falling back to notify`);
-      await HooksService.notifyBatch(emails);
+      await this.notifyBatch(emails);
     }
   }
 
@@ -401,13 +416,16 @@ export default class HooksService {
       }
     }
 
-    const labelStr = triage.labels?.length ? ` → labels: ${triage.labels.join(', ')}` : '';
-    const flagStr = triage.flag ? ' ⭐' : '';
-    await mcpLog(
-      'info',
-      'hooks',
-      `📬 [${triage.priority ?? 'normal'}] "${email.meta.subject}" from ${email.meta.from.address}${flagStr}${labelStr}`,
-    );
+    // Route through notifier for urgency-based alerts
+    const priority: UrgencyLevel = triage.priority ?? 'normal';
+    const payload: AlertPayload = {
+      account: email.account,
+      sender: email.meta.from,
+      subject: email.meta.subject,
+      priority,
+      labels: triage.labels,
+    };
+    await this.notifier.alert(payload);
     if (triage.action) {
       await mcpLog('info', 'hooks', `   Action: ${triage.action}`);
     }

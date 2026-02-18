@@ -73,12 +73,21 @@ export const HookRuleActionsSchema = z.object({
   labels: z.array(z.string()).optional(),
   flag: z.boolean().optional(),
   mark_read: z.boolean().optional(),
+  alert: z.boolean().optional(),
 });
 
 export const HookRuleSchema = z.object({
   name: z.string().min(1, 'Rule name is required'),
   match: HookRuleMatchSchema,
   actions: HookRuleActionsSchema,
+});
+
+export const AlertsConfigSchema = z.object({
+  desktop: z.boolean().default(false),
+  sound: z.boolean().default(false),
+  urgency_threshold: z.enum(['urgent', 'high', 'normal', 'low']).default('high'),
+  webhook_url: z.string().default(''),
+  webhook_events: z.array(z.enum(['urgent', 'high', 'normal', 'low'])).default(['urgent', 'high']),
 });
 
 export const HooksConfigSchema = z.object({
@@ -92,6 +101,13 @@ export const HooksConfigSchema = z.object({
   custom_instructions: z.string().optional(),
   system_prompt: z.string().optional(),
   rules: z.array(HookRuleSchema).default([]),
+  alerts: AlertsConfigSchema.default({
+    desktop: false,
+    sound: false,
+    urgency_threshold: 'high',
+    webhook_url: '',
+    webhook_events: ['urgent', 'high'],
+  }),
 });
 
 export const SettingsSchema = z.object({
@@ -109,6 +125,13 @@ export const SettingsSchema = z.object({
     auto_flag: false,
     batch_delay: 5,
     rules: [],
+    alerts: {
+      desktop: false,
+      sound: false,
+      urgency_threshold: 'high',
+      webhook_url: '',
+      webhook_events: ['urgent', 'high'],
+    },
   }),
 });
 
@@ -128,6 +151,13 @@ export const AppConfigFileSchema = z.object({
       auto_flag: false,
       batch_delay: 5,
       rules: [],
+      alerts: {
+        desktop: false,
+        sound: false,
+        urgency_threshold: 'high',
+        webhook_url: '',
+        webhook_events: ['urgent', 'high'],
+      },
     },
   }),
   accounts: z.array(AccountConfigSchema).min(1, 'At least one account is required'),

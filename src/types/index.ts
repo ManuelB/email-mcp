@@ -90,12 +90,25 @@ export interface HookRuleActions {
   labels?: string[];
   flag?: boolean;
   markRead?: boolean;
+  alert?: boolean;
 }
 
 export interface HookRule {
   name: string;
   match: HookRuleMatch;
   actions: HookRuleActions;
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+// ---------------------------------------------------------------------------
+
+export interface AlertsConfig {
+  desktop: boolean;
+  sound: boolean;
+  urgencyThreshold: 'urgent' | 'high' | 'normal' | 'low';
+  webhookUrl: string;
+  webhookEvents: ('urgent' | 'high' | 'normal' | 'low')[];
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +124,7 @@ export interface HooksConfig {
   customInstructions?: string;
   systemPrompt?: string;
   rules: HookRule[];
+  alerts: AlertsConfig;
 }
 
 export interface AppConfig {

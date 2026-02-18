@@ -122,11 +122,25 @@ export default function registerWatcherTools(
           if (rule.actions.labels?.length) actionParts.push(`labels=[${rule.actions.labels.join(', ')}]`);
           if (rule.actions.flag) actionParts.push('flag');
           if (rule.actions.markRead) actionParts.push('mark_read');
+          if (rule.actions.alert) actionParts.push('🔔 alert');
 
           sections.push(`   • "${rule.name}": ${matchParts.join(' & ')} → ${actionParts.join(', ')}`);
         });
       } else {
         sections.push('\n📋 Static Rules: none configured');
+      }
+
+      // Alerts config
+      const { alerts } = hooksConfig;
+      sections.push(`\n🔔 Alerts:`);
+      sections.push(`   Desktop:   ${alerts.desktop ? '✅ enabled' : '❌ disabled'}`);
+      sections.push(`   Sound:     ${alerts.sound ? '✅ enabled' : '❌ disabled'}`);
+      sections.push(`   Threshold: ${alerts.urgencyThreshold}`);
+      if (alerts.webhookUrl) {
+        sections.push(`   Webhook:   ${alerts.webhookUrl}`);
+        sections.push(`   Events:    ${alerts.webhookEvents.join(', ')}`);
+      } else {
+        sections.push(`   Webhook:   not configured`);
       }
 
       return {

@@ -511,6 +511,13 @@ async function addAccount(): Promise<void> {
             auto_flag: false,
             batch_delay: 5,
             rules: [],
+            alerts: {
+              desktop: false,
+              sound: false,
+              urgency_threshold: 'high',
+              webhook_url: '',
+              webhook_events: ['urgent', 'high'],
+            },
           },
         },
         accounts: [newAccount],
