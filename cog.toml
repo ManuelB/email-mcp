@@ -36,35 +36,10 @@ post_bump_hooks = [
 ]
 
 # ------------------------------------------------------------------------------
-# Git Hooks (install with: cog install-hook --all)
+# Git Hooks
 # ------------------------------------------------------------------------------
-[git_hooks]
-
-[git_hooks.commit-msg]
-script = """#!/bin/sh
-cog verify --file "$1" 2>/dev/null || {
-    echo ""
-    echo "❌ Invalid commit message format"
-    echo ""
-    echo "Expected: <type>(<scope>): <description>"
-    echo "Example:  feat(imap): add thread reconstruction"
-    echo ""
-    echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
-    echo ""
-    exit 1
-}
-"""
-
-[git_hooks.pre-push]
-script = """#!/bin/sh
-remote_ref=$(git rev-parse origin/develop 2>/dev/null || echo "")
-if [ -n "$remote_ref" ]; then
-    cog check "$remote_ref..HEAD" 2>/dev/null || {
-        echo "❌ Invalid commits found. Run 'cog check' to see details."
-        exit 1
-    }
-fi
-"""
+# Git hooks are managed by Lefthook (see lefthook.yml).
+# Do NOT run `cog install-hook` — Lefthook handles commit-msg and pre-push.
 
 # ------------------------------------------------------------------------------
 # Commit Types
