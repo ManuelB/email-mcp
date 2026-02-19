@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,78 +13,10 @@ concurrency:
 
 jobs:
   ci:
-    name: Lint · Typecheck · Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint & format
-        run: pnpm check
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: ci
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Integration tests
-        run: pnpm test:integration
-
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: integration-reports
-          path: reports/integration-*
-          retention-days: 14
-
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: ci
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: codefuturist/email-mcp:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+    uses: codefuturist/shared-workflows/.github/workflows/ci-node.yml@v1
+    with:
+      node-version: "24"
+      run-integration: true
+      integration-artifact-pattern: "reports/integration-*"
+      docker-smoke-test: true
+      docker-image: "codefuturist/email-mcp:ci"
