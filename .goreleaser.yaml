@@ -36,6 +36,11 @@ dockers_v2:
       org.opencontainers.image.created: "{{ .Date }}"
       org.opencontainers.image.licenses: LGPL-3.0-or-later
       org.opencontainers.image.vendor: codefuturist
+    annotations:
+      org.opencontainers.image.description: "IMAP/SMTP email MCP server — 47 tools, IMAP IDLE push, multi-account, AI triage"
+      org.opencontainers.image.source: "https://github.com/codefuturist/email-mcp"
+      org.opencontainers.image.licenses: LGPL-3.0-or-later
+      org.opencontainers.image.created: "{{ .Date }}"
 
 # GitHub Release + npm publish handled by existing release.yml steps
 release:
