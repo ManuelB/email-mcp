@@ -38,6 +38,12 @@
     "prepare": "lefthook install || true",
     "hooks:install": "lefthook install --force",
     "hooks:uninstall": "lefthook uninstall",
+    "docker:build": "docker build -t codefuturist/email-mcp .",
+    "docker:run": "docker run --rm -i -v ~/.config/email-mcp:/home/node/.config/email-mcp:ro codefuturist/email-mcp",
+    "docker:compose": "docker compose up",
+    "release:check": "goreleaser check",
+    "release:snapshot": "goreleaser release --snapshot --clean",
+    "release:dry-run": "goreleaser release --skip=publish --clean",
     "prepublishOnly": "tsc -p tsconfig.build.json"
   },
   "keywords": [
