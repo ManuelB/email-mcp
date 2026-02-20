@@ -6,30 +6,14 @@
     "url": "https://github.com/codefuturist/email-mcp.git",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@codefuturist/email-mcp",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "npx",
       "commandArguments": ["stdio"],
-      "transport": {
-        "type": "stdio"
-      }
-    },
-    {
-      "registryType": "docker",
-      "identifier": "codefuturist/email-mcp",
-      "version": "0.2.0",
-      "commandArguments": [
-        "run",
-        "--rm",
-        "-i",
-        "-v",
-        "~/.config/email-mcp:/home/node/.config/email-mcp:ro",
-        "ghcr.io/codefuturist/email-mcp"
-      ],
       "transport": {
         "type": "stdio"
       }

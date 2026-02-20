@@ -57,7 +57,6 @@ jobs:
           jq --arg v "$VERSION" '
             .version = $v
             | .packages[0].version = $v
-            | .packages[1].version = $v
           ' server.json > server.tmp && mv server.tmp server.json
 
       - name: Authenticate to MCP Registry
