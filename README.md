@@ -418,11 +418,36 @@ For single-account setups (overrides config file):
 
 The scheduler enables future email delivery with a layered architecture:
 
-1. **MCP auto-check** — Processes the queue on server startup and every 60 seconds
+1. **MCP auto-check** — Processes the queue on server startup and every 60 seconds while the MCP server is running
 2. **CLI** — `email-mcp scheduler check` for manual or cron-based processing
-3. **OS-level** — `email-mcp scheduler install` sets up launchd (macOS) or crontab (Linux)
+3. **OS-level daemon** — `email-mcp scheduler install` sets up launchd (macOS) or crontab (Linux) to run every minute, independently of the MCP server
 
-Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled/` with status-based locking and up to 3 retry attempts.
+> **Important — the daemon must be installed for reliable delivery.**
+> Without it, scheduled emails only fire while an AI client is actively connected.
+> Your machine also needs to be running at the scheduled time; if it's asleep or
+> off, the daemon will process overdue emails on next wake/startup. Failed sends
+> are retried up to **3 times** before being marked `failed`.
+
+#### Setting up the daemon
+
+```bash
+# Install (macOS launchd / Linux crontab — runs every minute)
+email-mcp scheduler install
+
+# Verify it's running
+email-mcp scheduler status
+
+# View pending / sent / failed scheduled emails
+email-mcp scheduler list
+
+# Trigger a manual check immediately
+email-mcp scheduler check
+
+# Remove the daemon
+email-mcp scheduler uninstall
+```
+
+Scheduled emails are stored as JSON files in `~/.local/state/email-mcp/scheduled/` with status-based locking. Each entry tracks attempts (max 3) and the last error, so you can inspect failures with `scheduler list`.
 
 ### Real-time Watcher & AI Hooks
 
