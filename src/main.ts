@@ -14,7 +14,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { loadConfig } from './config/loader.js';
 import ConnectionManager from './connections/manager.js';
-import { bindServer, mcpLog } from './logging.js';
+import { bindServer, markInitialized, mcpLog } from './logging.js';
 import registerAllPrompts from './prompts/register.js';
 import registerAllResources from './resources/register.js';
 import RateLimiter from './safety/rate-limiter.js';
@@ -109,37 +109,60 @@ async function runServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // Start watcher + hooks after connection so we have access to the low-level server
+  // --- Post-handshake initialization ----------------------------------------
+  // Everything below is deferred until the client completes the MCP
+  // `initialize` / `initialized` handshake.  This prevents notifications
+  // from being written to stdout before the client is ready, which would
+  // crash clients like Vibe, and ensures `getClientCapabilities()` returns
+  // the real capabilities (including `sampling` support).
+  // --------------------------------------------------------------------------
+
+  let schedulerInterval: ReturnType<typeof setInterval> | undefined;
+
   const lowLevelServer = server.server;
-  const clientCaps = lowLevelServer.getClientCapabilities?.() ?? {};
-  hooksService.start(lowLevelServer, { sampling: clientCaps.sampling != null });
 
-  await watcherService.start();
+  lowLevelServer.oninitialized = () => {
+    markInitialized();
 
-  await mcpLog('info', 'server', 'Email MCP server started');
+    void (async () => {
+      try {
+        const clientCaps = lowLevelServer.getClientCapabilities?.() ?? {};
+        hooksService.start(lowLevelServer, { sampling: clientCaps.sampling != null });
 
-  // Check for overdue scheduled emails on startup
-  try {
-    const result = await schedulerService.checkAndSend();
-    if (result.sent > 0) {
-      await mcpLog('info', 'scheduler', `Sent ${result.sent} overdue email(s) on startup`);
-    }
-  } catch {
-    // Non-fatal: scheduler check failure shouldn't prevent server start
-  }
+        await watcherService.start();
 
-  // Periodic scheduler check every 60 seconds
-  const checkInterval = setInterval(async () => {
-    try {
-      await schedulerService.checkAndSend();
-    } catch {
-      // Silent — don't spam logs
-    }
-  }, 60_000);
+        await mcpLog('info', 'server', 'Email MCP server started');
+
+        // Check for overdue scheduled emails on startup
+        try {
+          const result = await schedulerService.checkAndSend();
+          if (result.sent > 0) {
+            await mcpLog('info', 'scheduler', `Sent ${result.sent} overdue email(s) on startup`);
+          }
+        } catch {
+          // Non-fatal: scheduler check failure shouldn't prevent server start
+        }
+
+        // Periodic scheduler check every 60 seconds
+        schedulerInterval = setInterval(async () => {
+          try {
+            await schedulerService.checkAndSend();
+          } catch {
+            // Silent — don't spam logs
+          }
+        }, 60_000);
+      } catch (err) {
+        // Log to stderr — mcpLog may not be safe if init itself errored
+        process.stderr.write(
+          `[email-mcp] post-init error: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      }
+    })();
+  };
 
   // Graceful shutdown
   const shutdown = async () => {
-    clearInterval(checkInterval);
+    if (schedulerInterval) clearInterval(schedulerInterval);
     hooksService.stop();
     await watcherService.stop();
     await connections.closeAll();
